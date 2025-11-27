@@ -1,9 +1,17 @@
 // Blockchain Service - Smart Contract Interactions
 import { ethers } from 'ethers';
 import contractABI from '../utils/contractABI.json';
-import type { Vehicle, VehicleHistory } from '../types';
+import type { Vehicle, VehicleHistory, TransferRequest } from '../types';
 
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || '';
+
+interface KYCInfo {
+  fullName: string;
+  idNumber: string;
+  phone: string;
+  residenceAddress: string;
+  isVerified: boolean;
+}
 
 /**
  * Get the contract instance
@@ -31,12 +39,16 @@ export const registerKYC = async (kycData: {
 }): Promise<string> => {
   try {
     console.log('Registering KYC:', kycData);
-    // const contract = await getContract();
-    // const tx = await contract.registerKYC(...);
-    // await tx.wait();
-    // return tx.hash;
-
-    return '0x' + Math.random().toString(16).slice(2);
+    const contract = await getContract();
+    const tx = await contract.registerKYC(
+      kycData.fullName,
+      kycData.idNumber,
+      kycData.phone,
+      kycData.residenceAddress,
+      kycData.ipfsHash
+    );
+    await tx.wait();
+    return tx.hash;
   } catch (error) {
     console.error('Error registering KYC:', error);
     throw error;
@@ -49,9 +61,11 @@ export const registerKYC = async (kycData: {
 export const checkKYCStatus = async (address: string): Promise<boolean> => {
   try {
     console.log('Checking KYC status for:', address);
+    // Contract doesn't have KYC functions yet
     // const contract = await getContract();
     // return await contract.isKYCVerified(address);
-
+    
+    // Return true for now (all users considered verified)
     return !!address;
   } catch (error) {
     console.error('Error checking KYC status:', error);
@@ -62,14 +76,19 @@ export const checkKYCStatus = async (address: string): Promise<boolean> => {
 /**
  * Get user KYC data
  */
-export const getUserKYC = async (address: string): Promise<any> => {
+export const getUserKYC = async (address: string): Promise<KYCInfo | null> => {
   try {
     console.log('Getting KYC data for:', address);
+    // Contract doesn't have KYC functions yet
     // const contract = await getContract();
-    // return await contract.getUserKYC(address);
-
+    // const kycData = await contract.getUserKYC(address);
+    
+    // Return basic info for now
     return {
-      fullName: 'Nguyễn Văn A',
+      fullName: 'User',
+      idNumber: '',
+      phone: '',
+      residenceAddress: '',
       isVerified: true,
     };
   } catch (error) {
@@ -92,12 +111,15 @@ export const submitVehicle = async (vehicleData: {
 }): Promise<string> => {
   try {
     console.log('Submitting vehicle:', vehicleData);
-    // const contract = await getContract();
-    // const tx = await contract.submitVehicle(...);
-    // await tx.wait();
-    // return tx.hash;
-
-    return '0x' + Math.random().toString(16).slice(2);
+    const contract = await getContract();
+    // Contract function: requestRegistration(string _vin, string _ipfsHash, string _plate)
+    const tx = await contract.requestRegistration(
+      vehicleData.vin,
+      vehicleData.photoIpfsHash, // Use photo hash as main IPFS hash
+      vehicleData.licensePlate
+    );
+    await tx.wait();
+    return tx.hash;
   } catch (error) {
     console.error('Error submitting vehicle:', error);
     throw error;
@@ -110,11 +132,9 @@ export const submitVehicle = async (vehicleData: {
 export const getVehicleDetails = async (vin: string): Promise<Vehicle | null> => {
   try {
     console.log('Getting vehicle details for VIN:', vin);
-    // const contract = await getContract();
-    // const vehicle = await contract.getVehicle(vin);
-    // return vehicle;
-
-    return null;
+    const contract = await getContract();
+    const vehicle = await contract.getVehicle(vin);
+    return vehicle;
   } catch (error) {
     console.error('Error getting vehicle details:', error);
     return null;
@@ -122,15 +142,15 @@ export const getVehicleDetails = async (vin: string): Promise<Vehicle | null> =>
 };
 
 /**
- * Get all vehicles owned by an address - NO MOCK DATA
+ * Get all vehicles owned by an address
  */
 export const getMyVehicles = async (address: string): Promise<Vehicle[]> => {
   try {
     console.log('Getting vehicles for address:', address);
-    // const contract = await getContract();
-    // return await contract.getVehiclesByOwner(address);
-
-    return []; // Return empty array - will be populated when contract is connected
+    const contract = await getContract();
+    // Contract function: getMyVehicles() - returns vehicles for msg.sender
+    const vehicles = await contract.getMyVehicles();
+    return vehicles;
   } catch (error) {
     console.error('Error getting vehicles:', error);
     return [];
@@ -143,12 +163,10 @@ export const getMyVehicles = async (address: string): Promise<Vehicle[]> => {
 export const requestTransfer = async (vin: string, newOwner: string): Promise<string> => {
   try {
     console.log('Requesting transfer:', { vin, newOwner });
-    // const contract = await getContract();
-    // const tx = await contract.requestTransfer(vin, newOwner);
-    // await tx.wait();
-    // return tx.hash;
-
-    return '0x' + Math.random().toString(16).slice(2);
+    const contract = await getContract();
+    const tx = await contract.requestTransfer(vin, newOwner);
+    await tx.wait();
+    return tx.hash;
   } catch (error) {
     console.error('Error requesting transfer:', error);
     throw error;
@@ -161,12 +179,11 @@ export const requestTransfer = async (vin: string, newOwner: string): Promise<st
 export const approveVehicle = async (vin: string): Promise<string> => {
   try {
     console.log('Approving vehicle:', vin);
-    // const contract = await getContract();
-    // const tx = await contract.approveVehicle(vin);
-    // await tx.wait();
-    // return tx.hash;
-
-    return '0x' + Math.random().toString(16).slice(2);
+    const contract = await getContract();
+    // Contract function: approveRegistration(string _vin)
+    const tx = await contract.approveRegistration(vin);
+    await tx.wait();
+    return tx.hash;
   } catch (error) {
     console.error('Error approving vehicle:', error);
     throw error;
@@ -176,15 +193,15 @@ export const approveVehicle = async (vin: string): Promise<string> => {
 /**
  * Reject a vehicle registration (Authority only)
  */
-export const rejectVehicle = async (vin: string, reason: string): Promise<string> => {
+export const rejectVehicle = async (vin: string, reason?: string): Promise<string> => {
   try {
     console.log('Rejecting vehicle:', { vin, reason });
-    // const contract = await getContract();
-    // const tx = await contract.rejectVehicle(vin, reason);
-    // await tx.wait();
-    // return tx.hash;
-
-    return '0x' + Math.random().toString(16).slice(2);
+    const contract = await getContract();
+    // Contract function: rejectVehicle(string _vin) - doesn't accept reason parameter
+    // TODO: Update contract to accept rejection reason
+    const tx = await contract.rejectVehicle(vin);
+    await tx.wait();
+    return tx.hash;
   } catch (error) {
     console.error('Error rejecting vehicle:', error);
     throw error;
@@ -197,12 +214,10 @@ export const rejectVehicle = async (vin: string, reason: string): Promise<string
 export const approveTransfer = async (vin: string): Promise<string> => {
   try {
     console.log('Approving transfer:', vin);
-    // const contract = await getContract();
-    // const tx = await contract.approveTransfer(vin);
-    // await tx.wait();
-    // return tx.hash;
-
-    return '0x' + Math.random().toString(16).slice(2);
+    const contract = await getContract();
+    const tx = await contract.approveTransfer(vin);
+    await tx.wait();
+    return tx.hash;
   } catch (error) {
     console.error('Error approving transfer:', error);
     throw error;
@@ -215,10 +230,8 @@ export const approveTransfer = async (vin: string): Promise<string> => {
 export const getVehicleHistory = async (vin: string): Promise<VehicleHistory[]> => {
   try {
     console.log('Getting vehicle history for:', vin);
-    // const contract = await getContract();
-    // return await contract.getVehicleHistory(vin);
-
-    return [];
+    const contract = await getContract();
+    return await contract.getVehicleHistory(vin);
   } catch (error) {
     console.error('Error getting vehicle history:', error);
     return [];
@@ -231,10 +244,11 @@ export const getVehicleHistory = async (vin: string): Promise<VehicleHistory[]> 
 export const getPendingRegistrations = async (): Promise<Vehicle[]> => {
   try {
     console.log('Getting pending registrations');
-    // const contract = await getContract();
-    // return await contract.getPendingRegistrations();
-
-    return [];
+    const contract = await getContract();
+    // Contract function: getAllVehicles() - returns all vehicles
+    const allVehicles = await contract.getAllVehicles();
+    // Filter for pending status
+    return allVehicles.filter((v: Vehicle) => v.status === 'PENDING');
   } catch (error) {
     console.error('Error getting pending registrations:', error);
     return [];
@@ -244,13 +258,11 @@ export const getPendingRegistrations = async (): Promise<Vehicle[]> => {
 /**
  * Get pending transfers (Authority only)
  */
-export const getPendingTransfers = async (): Promise<any[]> => {
+export const getPendingTransfers = async (): Promise<TransferRequest[]> => {
   try {
     console.log('Getting pending transfers');
-    // const contract = await getContract();
-    // return await contract.getPendingTransfers();
-
-    return [];
+    const contract = await getContract();
+    return await contract.getPendingTransfers();
   } catch (error) {
     console.error('Error getting pending transfers:', error);
     return [];

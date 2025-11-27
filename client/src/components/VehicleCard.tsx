@@ -7,14 +7,17 @@ interface VehicleCardProps {
   vehicle: Vehicle;
   onViewDetails?: (vin: string) => void;
   onTransfer?: (vin: string) => void;
+  onResubmit?: (vin: string) => void;
 }
 
 const VehicleCard: React.FC<VehicleCardProps> = ({
   vehicle,
   onViewDetails,
   onTransfer,
+  onResubmit,
 }) => {
   const canTransfer = vehicle.status === VehicleStatus.ACTIVE;
+  const isRejected = vehicle.status === VehicleStatus.REJECTED;
 
   return (
     <div className="card hover:shadow-lg transition-shadow duration-200 animate-fade-in">
@@ -51,23 +54,60 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
           <span>•</span>
           <span>{vehicle.color}</span>
         </div>
+        
+        {/* Rejection Reason Alert */}
+        {isRejected && (
+          <div className="mt-4 bg-red-50 border-l-4 border-red-500 p-3 rounded">
+            <div className="flex items-start">
+              <svg className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-red-800">Lý do từ chối:</p>
+                <p className="text-sm text-red-700 mt-1">
+                  {/* TODO: Add rejection reason from contract */}
+                  Giấy tờ không hợp lệ hoặc thông tin không chính xác
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Action Buttons */}
       <div className="flex gap-2 mt-6">
-        <button
-          onClick={() => onViewDetails?.(vehicle.vin)}
-          className="btn btn-outline flex-1"
-        >
-          Xem chi tiết
-        </button>
-        <button
-          onClick={() => onTransfer?.(vehicle.vin)}
-          className="btn btn-primary flex-1"
-          disabled={!canTransfer}
-        >
-          Chuyển nhượng
-        </button>
+        {isRejected ? (
+          <>
+            <button
+              onClick={() => onViewDetails?.(vehicle.vin)}
+              className="btn btn-outline flex-1"
+            >
+              Xem chi tiết
+            </button>
+            <button
+              onClick={() => onResubmit?.(vehicle.vin)}
+              className="btn bg-orange-600 hover:bg-orange-700 text-white flex-1"
+            >
+              Đăng ký lại
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={() => onViewDetails?.(vehicle.vin)}
+              className="btn btn-outline flex-1"
+            >
+              Xem chi tiết
+            </button>
+            <button
+              onClick={() => onTransfer?.(vehicle.vin)}
+              className="btn btn-primary flex-1"
+              disabled={!canTransfer}
+            >
+              Chuyển nhượng
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

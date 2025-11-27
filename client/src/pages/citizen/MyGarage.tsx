@@ -4,7 +4,7 @@ import VehicleCard from '../../components/VehicleCard';
 import { CardSkeleton } from '../../components/Skeleton';
 import { getMyVehicles } from '../../services/blockchain';
 import type { Vehicle } from '../../types';
-import { TruckIcon, ClockIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { TruckIcon, ClockIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 
 interface MyGarageProps {
   onRegisterClick?: () => void;
@@ -46,15 +46,24 @@ const MyGarage: React.FC<MyGarageProps> = ({ onRegisterClick }) => {
     // Open transfer modal
   };
 
+  const handleResubmit = (vin: string) => {
+    console.log('Resubmit vehicle:', vin);
+    // TODO: Navigate to edit/resubmit form with prefilled data
+    if (onRegisterClick) {
+      onRegisterClick();
+    }
+  };
+
   // Statistics
   const totalVehicles = vehicles.length;
   const pendingVehicles = vehicles.filter(v => v.status === 'PENDING').length;
-  const approvedVehicles = totalVehicles - pendingVehicles;
+  const approvedVehicles = vehicles.filter(v => v.status === 'ACTIVE').length;
+  const rejectedVehicles = vehicles.filter(v => v.status === 'REJECTED').length;
 
   return (
     <div className="space-y-6">
       {/* Compact Statistics Cards */}
-      <div className="grid md:grid-cols-3 gap-4">
+      <div className="grid md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-md p-5 border-l-4 border-blue-500">
           <div className="flex items-center">
             <div className="flex-shrink-0">
@@ -90,6 +99,18 @@ const MyGarage: React.FC<MyGarageProps> = ({ onRegisterClick }) => {
             </div>
           </div>
         </div>
+
+        <div className="bg-white rounded-lg shadow-md p-5 border-l-4 border-red-500">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <XCircleIcon className="w-10 h-10 text-red-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Từ chối</p>
+              <p className="text-2xl font-bold text-red-600">{rejectedVehicles}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Vehicles Grid */}
@@ -107,6 +128,7 @@ const MyGarage: React.FC<MyGarageProps> = ({ onRegisterClick }) => {
                 vehicle={vehicle}
                 onViewDetails={handleViewDetails}
                 onTransfer={handleTransfer}
+                onResubmit={handleResubmit}
               />
             </div>
           ))}

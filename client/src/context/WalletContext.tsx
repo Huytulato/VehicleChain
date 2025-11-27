@@ -6,6 +6,12 @@ import type { User } from '../types';
 import { UserRole } from '../types';
 import { checkKYCStatus, getUserKYC } from '../services/blockchain';
 
+// Admin addresses (hardcoded for development)
+// TODO: Move to smart contract in production
+const ADMIN_ADDRESSES: string[] = [
+'0xeaafb7e0ea438127a5f52dbd5fb56f5d8e9fe6f3'
+].map(addr => addr.toLowerCase());
+
 interface WalletContextType {
   account: string | null;
   user: User | null;
@@ -97,21 +103,25 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const loadUserData = async (address: string) => {
     try {
+      // Check if user is admin
+      const isAdmin = ADMIN_ADDRESSES.includes(address.toLowerCase());
+      const userRole = isAdmin ? UserRole.AUTHORITY : UserRole.CITIZEN;
+
       const isKYCVerified = await checkKYCStatus(address);
 
       if (isKYCVerified) {
         const kycData = await getUserKYC(address);
         setUser({
           address,
-          fullName: kycData?.fullName || 'Unknown User',
+          fullName: kycData?.fullName || (isAdmin ? 'Admin User' : 'User'),
           isKYCVerified: true,
-          role: UserRole.CITIZEN, // Default role, can be determined from contract
+          role: userRole,
         });
       } else {
         setUser({
           address,
           isKYCVerified: false,
-          role: UserRole.CITIZEN,
+          role: userRole,
         });
       }
     } catch (error) {
