@@ -1,9 +1,24 @@
 // Blockchain Service - Smart Contract Interactions
 import { ethers } from 'ethers';
 import contractABI from '../utils/contractABI.json';
-import type { Vehicle, VehicleHistory, TransferRequest } from '../types';
+import type { Vehicle, VehicleHistory, TransferRequest, VehicleStatusType } from '../types';
 
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || '';
+
+/**
+ * Map contract status enum to string
+ * Contract enum: 0=KHONG_TON_TAI, 1=CHO_DUYET_CAP_MOI, 2=DA_CAP, 3=CHO_DUYET_SANG_TEN, 4=BI_TU_CHOI
+ */
+const mapContractStatus = (status: number): VehicleStatusType => {
+  const statusMap: { [key: number]: VehicleStatusType } = {
+    0: 'PENDING',      // KHONG_TON_TAI (shouldn't happen in returned data)
+    1: 'PENDING',      // CHO_DUYET_CAP_MOI
+    2: 'ACTIVE',       // DA_CAP
+    3: 'TRANSFERRING', // CHO_DUYET_SANG_TEN
+    4: 'REJECTED',     // BI_TU_CHOI
+  };
+  return statusMap[status] || 'PENDING';
+};
 
 interface KYCInfo {
   fullName: string;
@@ -100,23 +115,21 @@ export const getUserKYC = async (address: string): Promise<KYCInfo | null> => {
 /**
  * Submit a new vehicle registration
  */
-export const submitVehicle = async (vehicleData: {
-  vin: string;
-  engineNumber: string;
-  licensePlate: string;
-  brand: string;
-  color: string;
-  photoIpfsHash: string;
-  documentIpfsHash: string;
-}): Promise<string> => {
+export const submitVehicle = async (
+  vin: string,
+  photoIpfsHash: string,
+  licensePlate: string,
+  brand: string
+): Promise<string> => {
   try {
-    console.log('Submitting vehicle:', vehicleData);
+    console.log('Submitting vehicle:', { vin, photoIpfsHash, licensePlate, brand });
     const contract = await getContract();
-    // Contract function: requestRegistration(string _vin, string _ipfsHash, string _plate)
+    // Contract function: requestRegistration(string _vin, string _ipfsHash, string _plate, string _brand)
     const tx = await contract.requestRegistration(
-      vehicleData.vin,
-      vehicleData.photoIpfsHash, // Use photo hash as main IPFS hash
-      vehicleData.licensePlate
+      vin,
+      photoIpfsHash,
+      licensePlate,
+      brand
     );
     await tx.wait();
     return tx.hash;
@@ -148,9 +161,22 @@ export const getMyVehicles = async (address: string): Promise<Vehicle[]> => {
   try {
     console.log('Getting vehicles for address:', address);
     const contract = await getContract();
-    // Contract function: getMyVehicles() - returns vehicles for msg.sender
-    const vehicles = await contract.getMyVehicles();
-    return vehicles;
+    // Contract function: getMyVehicles(address _user)
+    const vehicles = await contract.getMyVehicles(address);
+    
+    // Map contract struct to Vehicle type
+    return vehicles.map((v: any) => ({
+      vin: v.vin,
+      licensePlate: v.plateNumber,
+      brand: v.brand || 'Unknown',
+      owner: v.owner,
+      status: mapContractStatus(Number(v.status)),
+      photoIpfsHash: v.ipfsHash,
+      registrationDate: Number(v.timestamp),
+      engineNumber: '', // Not in contract
+      color: '', // Not in contract
+      rejectReason: v.rejectReason || '',
+    }));
   } catch (error) {
     console.error('Error getting vehicles:', error);
     return [];
@@ -197,9 +223,11 @@ export const rejectVehicle = async (vin: string, reason?: string): Promise<strin
   try {
     console.log('Rejecting vehicle:', { vin, reason });
     const contract = await getContract();
-    // Contract function: rejectVehicle(string _vin) - doesn't accept reason parameter
-    // TODO: Update contract to accept rejection reason
-    const tx = await contract.rejectVehicle(vin);
+    // Contract function: rejectVehicle(string _vin, string _reason)
+    const tx = await contract.rejectVehicle(
+      vin,
+      reason || 'Không đạt yêu cầu'
+    );
     await tx.wait();
     return tx.hash;
   } catch (error) {
@@ -247,8 +275,23 @@ export const getPendingRegistrations = async (): Promise<Vehicle[]> => {
     const contract = await getContract();
     // Contract function: getAllVehicles() - returns all vehicles
     const allVehicles = await contract.getAllVehicles();
-    // Filter for pending status
-    return allVehicles.filter((v: Vehicle) => v.status === 'PENDING');
+    
+    // Map contract struct to Vehicle type and filter for pending status (CHO_DUYET_CAP_MOI = 1)
+    const mappedVehicles = allVehicles.map((v: any) => ({
+      vin: v.vin,
+      licensePlate: v.plateNumber,
+      brand: v.brand || 'Unknown',
+      owner: v.owner,
+      status: mapContractStatus(Number(v.status)),
+      photoIpfsHash: v.ipfsHash,
+      registrationDate: Number(v.timestamp),
+      engineNumber: '', // Not in contract
+      color: '', // Not in contract
+      rejectReason: v.rejectReason || '',
+    }));
+    
+    console.log('Mapped vehicles:', mappedVehicles);
+    return mappedVehicles.filter((v: Vehicle) => v.status === 'PENDING');
   } catch (error) {
     console.error('Error getting pending registrations:', error);
     return [];

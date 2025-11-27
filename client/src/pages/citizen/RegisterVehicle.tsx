@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import Spinner from '../../components/Spinner';
+import { submitVehicle } from '../../services/blockchain';
+import { uploadMultipleFiles } from '../../services/ipfs';
 
 const RegisterVehicle: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
 
   // Form data
   const [formData, setFormData] = useState({
@@ -14,6 +17,17 @@ const RegisterVehicle: React.FC = () => {
     color: '',
   });
 
+  // Photo upload state
+  const [photos, setPhotos] = useState({
+    front: null as File | null,
+    back: null as File | null,
+    left: null as File | null,
+    right: null as File | null,
+  });
+
+  // Document upload state
+  const [document, setDocument] = useState<File | null>(null);
+
   const steps = [
     { number: 1, title: 'Thông tin' },
     { number: 2, title: 'Hình ảnh' },
@@ -22,14 +36,69 @@ const RegisterVehicle: React.FC = () => {
   ];
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: value,
     });
+    // Clear error when user types
+    if (errors[name]) {
+      setErrors({ ...errors, [name]: '' });
+    }
+  };
+
+  const validateStep1 = (): boolean => {
+    const newErrors: {[key: string]: string} = {};
+    
+    if (!formData.vin.trim()) {
+      newErrors.vin = 'Số khung là bắt buộc';
+    }
+    if (!formData.engineNumber.trim()) {
+      newErrors.engineNumber = 'Số máy là bắt buộc';
+    }
+    if (!formData.licensePlate.trim()) {
+      newErrors.licensePlate = 'Biển số là bắt buộc';
+    }
+    if (!formData.brand.trim()) {
+      newErrors.brand = 'Nhãn hiệu là bắt buộc';
+    }
+    if (!formData.color.trim()) {
+      newErrors.color = 'Màu sơn là bắt buộc';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const validateStep2 = (): boolean => {
+    if (!photos.front || !photos.back || !photos.left || !photos.right) {
+      alert('⚠️ Vui lòng tải lên đầy đủ 4 hình ảnh (Mặt trước, Mặt sau, Bên trái, Bên phải)');
+      return false;
+    }
+    return true;
+  };
+
+  const validateStep3 = (): boolean => {
+    if (!document) {
+      alert('⚠️ Vui lòng tải lên giấy tờ pháp lý');
+      return false;
+    }
+    return true;
   };
 
   const handleNext = () => {
-    if (currentStep < 4) {
+    // Validate current step before proceeding
+    let isValid = false;
+    
+    if (currentStep === 1) {
+      isValid = validateStep1();
+    } else if (currentStep === 2) {
+      isValid = validateStep2();
+    } else if (currentStep === 3) {
+      isValid = validateStep3();
+    }
+
+    if (isValid && currentStep < 4) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -40,12 +109,42 @@ const RegisterVehicle: React.FC = () => {
     }
   };
 
+  const handlePhotoUpload = (position: 'front' | 'back' | 'left' | 'right') => (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setPhotos({ ...photos, [position]: e.target.files[0] });
+    }
+  };
+
+  const handleDocumentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setDocument(e.target.files[0]);
+    }
+  };
+
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    // Simulate submission
-    setTimeout(() => {
-      alert('Đã gửi hồ sơ đăng ký thành công! Chuyển sang tab "My Garage" để xem.');
-      setIsSubmitting(false);
+    try {
+      // Step 1: Upload photos to IPFS
+      const photoFiles = {
+        front: photos.front!,
+        back: photos.back!,
+        left: photos.left!,
+        right: photos.right!,
+      };
+      
+      const photoHashes = await uploadMultipleFiles(photoFiles);
+      const photoIpfsHash = JSON.stringify(photoHashes); // Store all hashes as JSON string
+
+      // Step 2: Submit to blockchain (MetaMask will pop up for confirmation)
+      const txHash = await submitVehicle(
+        formData.vin,
+        photoIpfsHash,
+        formData.licensePlate,
+        formData.brand
+      );
+
+      alert(`✅ Đăng ký thành công!\nTransaction Hash: ${txHash}\n\nHồ sơ đang chờ cơ quan duyệt.`);
+      
       // Reset form
       setCurrentStep(1);
       setFormData({
@@ -55,7 +154,19 @@ const RegisterVehicle: React.FC = () => {
         brand: '',
         color: '',
       });
-    }, 2000);
+      setPhotos({
+        front: null,
+        back: null,
+        left: null,
+        right: null,
+      });
+      setDocument(null);
+    } catch (error: any) {
+      console.error('Submission error:', error);
+      alert(`❌ Lỗi đăng ký: ${error.message || 'Vui lòng thử lại'}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -100,63 +211,78 @@ const RegisterVehicle: React.FC = () => {
             <h2 className="text-2xl font-bold">Thông tin phương tiện</h2>
 
             <div>
-              <label className="label">Số khung (VIN)</label>
+              <label className="label">
+                Số khung (VIN) <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 name="vin"
                 value={formData.vin}
                 onChange={handleInputChange}
-                className="input"
+                className={`input ${errors.vin ? 'border-red-500' : ''}`}
                 placeholder="Nhập số khung"
               />
+              {errors.vin && <p className="text-red-500 text-sm mt-1">{errors.vin}</p>}
             </div>
 
             <div>
-              <label className="label">Số máy</label>
+              <label className="label">
+                Số máy <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 name="engineNumber"
                 value={formData.engineNumber}
                 onChange={handleInputChange}
-                className="input"
+                className={`input ${errors.engineNumber ? 'border-red-500' : ''}`}
                 placeholder="Nhập số máy"
               />
+              {errors.engineNumber && <p className="text-red-500 text-sm mt-1">{errors.engineNumber}</p>}
             </div>
 
             <div>
-              <label className="label">Biển số</label>
+              <label className="label">
+                Biển số <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 name="licensePlate"
                 value={formData.licensePlate}
                 onChange={handleInputChange}
-                className="input"
+                className={`input ${errors.licensePlate ? 'border-red-500' : ''}`}
                 placeholder="Ví dụ: 30A-12345"
               />
+              {errors.licensePlate && <p className="text-red-500 text-sm mt-1">{errors.licensePlate}</p>}
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="label">Nhãn hiệu</label>
+                <label className="label">
+                  Nhãn hiệu <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   name="brand"
                   value={formData.brand}
                   onChange={handleInputChange}
-                  className="input"
+                  className={`input ${errors.brand ? 'border-red-500' : ''}`}
                   placeholder="Honda, Yamaha..."
                 />
+                {errors.brand && <p className="text-red-500 text-sm mt-1">{errors.brand}</p>}
               </div>
               <div>
-                <label className="label">Màu sơn</label>
+                <label className="label">
+                  Màu sơn <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   name="color"
                   value={formData.color}
                   onChange={handleInputChange}
-                  className="input"
+                  className={`input ${errors.color ? 'border-red-500' : ''}`}
                   placeholder="Đỏ, Xanh, Trắng..."
                 />
+                {errors.color && <p className="text-red-500 text-sm mt-1">{errors.color}</p>}
               </div>
             </div>
           </div>
@@ -164,34 +290,54 @@ const RegisterVehicle: React.FC = () => {
 
         {currentStep === 2 && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Hình ảnh ngoại quan</h2>
-            <p className="text-gray-600">Vui lòng chụp ảnh xe từ 4 góc độ</p>
+            <h2 className="text-2xl font-bold">
+              Hình ảnh ngoại quan <span className="text-red-500">*</span>
+            </h2>
+            <p className="text-gray-600">Vui lòng chụp ảnh xe từ 4 góc độ (bắt buộc)</p>
 
             <div className="grid md:grid-cols-2 gap-4">
-              {['Mặt trước', 'Mặt sau', 'Bên trái', 'Bên phải'].map((label) => (
-                <div key={label} className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-500 transition-colors">
-                  <svg
-                    className="w-12 h-12 mx-auto text-gray-400 mb-2"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                  </svg>
-                  <p className="text-sm font-medium text-gray-700">{label}</p>
-                  <p className="text-xs text-gray-500 mt-1">Click để chọn ảnh</p>
-                </div>
+              {[{key: 'front', label: 'Mặt trước'}, {key: 'back', label: 'Mặt sau'}, {key: 'left', label: 'Bên trái'}, {key: 'right', label: 'Bên phải'}].map(({key, label}) => (
+                <label key={key} className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-500 transition-colors relative">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload(key as 'front' | 'back' | 'left' | 'right')}
+                    className="hidden"
+                  />
+                  {photos[key as keyof typeof photos] ? (
+                    <div className="text-green-600">
+                      <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <p className="text-sm font-medium">Đã tải lên</p>
+                      <p className="text-xs mt-1">{photos[key as keyof typeof photos]?.name}</p>
+                    </div>
+                  ) : (
+                    <>
+                      <svg
+                        className="w-12 h-12 mx-auto text-gray-400 mb-2"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                        />
+                      </svg>
+                      <p className="text-sm font-medium text-gray-700">{label}</p>
+                      <p className="text-xs text-gray-500 mt-1">Click để chọn ảnh</p>
+                    </>
+                  )}
+                </label>
               ))}
             </div>
           </div>
@@ -209,16 +355,33 @@ const RegisterVehicle: React.FC = () => {
               </div>
             </div>
 
-            <h2 className="text-2xl font-bold">Hồ sơ pháp lý</h2>
+            <h2 className="text-2xl font-bold">
+              Hồ sơ pháp lý <span className="text-red-500">*</span>
+            </h2>
 
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center">
-              <div className="text-6xl mb-4">🔒</div>
-              <p className="text-lg font-medium text-gray-700 mb-2">Tải lên giấy tờ pháp lý</p>
-              <p className="text-sm text-gray-500 mb-4">Chứng nhận nguồn gốc, Hóa đơn mua bán, Giấy đăng ký xe...</p>
-              <button className="btn btn-outline">
-                Chọn tệp
-              </button>
-            </div>
+            <label className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center block cursor-pointer hover:border-blue-500 transition-colors">
+              <input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={handleDocumentUpload}
+                className="hidden"
+              />
+              {document ? (
+                <div className="text-green-600">
+                  <div className="text-6xl mb-4">✅</div>
+                  <p className="text-lg font-medium mb-2">Đã tải lên thành công</p>
+                  <p className="text-sm">{document.name}</p>
+                  <p className="text-xs text-gray-500 mt-2">Click để thay đổi</p>
+                </div>
+              ) : (
+                <>
+                  <div className="text-6xl mb-4">🔒</div>
+                  <p className="text-lg font-medium text-gray-700 mb-2">Tải lên giấy tờ pháp lý</p>
+                  <p className="text-sm text-gray-500 mb-4">Chứng nhận nguồn gốc, Hóa đơn mua bán, Giấy đăng ký xe...</p>
+                  <span className="btn btn-outline">Chọn tệp</span>
+                </>
+              )}
+            </label>
           </div>
         )}
 

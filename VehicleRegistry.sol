@@ -10,9 +10,11 @@ contract VehicleRegistry {
         string vin;             // Số khung (Khóa chính)
         string ipfsHash;        // Ảnh/Giấy tờ trên IPFS
         string plateNumber;     // Biển số
+        string brand;           // Nhãn hiệu xe
         address owner;          // Chủ hiện tại
         address pendingBuyer;   // Người mua đang chờ (nếu có)
         Status status;          // Trạng thái
+        string rejectReason;    // Lý do từ chối
         uint256 timestamp;      // Ngày cập nhật cuối
     }
 
@@ -46,16 +48,18 @@ contract VehicleRegistry {
     // --- CHỨC NĂNG NGƯỜI DÂN ---
 
     // 1. Đăng ký xe mới
-    function requestRegistration(string memory _vin, string memory _ipfsHash, string memory _plate) public {
+    function requestRegistration(string memory _vin, string memory _ipfsHash, string memory _plate, string memory _brand) public {
         require(vehicles[_vin].status == Status.KHONG_TON_TAI, "Xe da ton tai hoac dang cho duyet");
 
         vehicles[_vin] = Vehicle({
             vin: _vin,
             ipfsHash: _ipfsHash,
             plateNumber: _plate,
+            brand: _brand,
             owner: msg.sender,
             pendingBuyer: address(0),
             status: Status.CHO_DUYET_CAP_MOI,
+            rejectReason: "",
             timestamp: block.timestamp
         });
 
@@ -113,8 +117,9 @@ contract VehicleRegistry {
     }
 
     // 5. Từ chối hồ sơ
-    function rejectVehicle(string memory _vin) public onlyAuthority {
+    function rejectVehicle(string memory _vin, string memory _reason) public onlyAuthority {
         vehicles[_vin].status = Status.BI_TU_CHOI;
+        vehicles[_vin].rejectReason = _reason;
         vehicles[_vin].pendingBuyer = address(0);
     }
 

@@ -3,8 +3,9 @@ import { useWallet } from '../../context/WalletContext';
 import VehicleCard from '../../components/VehicleCard';
 import { CardSkeleton } from '../../components/Skeleton';
 import { getMyVehicles } from '../../services/blockchain';
+import { getIPFSUrl } from '../../services/ipfs';
 import type { Vehicle } from '../../types';
-import { TruckIcon, ClockIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
+import { TruckIcon, ClockIcon, CheckCircleIcon, XCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 interface MyGarageProps {
   onRegisterClick?: () => void;
@@ -14,6 +15,8 @@ const MyGarage: React.FC<MyGarageProps> = ({ onRegisterClick }) => {
   const { account } = useWallet();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   const loadVehicles = async () => {
     if (!account) return;
@@ -37,8 +40,11 @@ const MyGarage: React.FC<MyGarageProps> = ({ onRegisterClick }) => {
   }, [account]);
 
   const handleViewDetails = (vin: string) => {
-    console.log('View details for:', vin);
-    // Navigate to vehicle details page
+    const vehicle = vehicles.find(v => v.vin === vin);
+    if (vehicle) {
+      setSelectedVehicle(vehicle);
+      setShowDetailModal(true);
+    }
   };
 
   const handleTransfer = (vin: string) => {
@@ -151,6 +157,147 @@ const MyGarage: React.FC<MyGarageProps> = ({ onRegisterClick }) => {
               Đăng ký ngay
             </button>
           )}
+        </div>
+      )}
+
+      {/* Vehicle Detail Modal */}
+      {showDetailModal && selectedVehicle && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center text-white">
+                <TruckIcon className="w-6 h-6 mr-3" />
+                <h2 className="text-xl font-bold">
+                  Chi tiết xe - {selectedVehicle.licensePlate}
+                </h2>
+              </div>
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-2 transition-colors"
+              >
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 max-h-[calc(90vh-140px)] overflow-y-auto">
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Left: Vehicle Information */}
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 text-gray-900">Thông tin xe</h3>
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                      <div className="flex justify-between py-2 border-b border-gray-200">
+                        <span className="text-gray-600 font-medium">Biển số:</span>
+                        <span className="font-bold text-lg">{selectedVehicle.licensePlate}</span>
+                      </div>
+                      <div className="flex justify-between py-2 border-b border-gray-200">
+                        <span className="text-gray-600 font-medium">Số khung (VIN):</span>
+                        <span className="font-mono text-sm font-semibold">{selectedVehicle.vin}</span>
+                      </div>
+                      <div className="flex justify-between py-2 border-b border-gray-200">
+                        <span className="text-gray-600 font-medium">Nhãn hiệu:</span>
+                        <span className="font-semibold">{selectedVehicle.brand}</span>
+                      </div>
+                      <div className="flex justify-between py-2 border-b border-gray-200">
+                        <span className="text-gray-600 font-medium">Trạng thái:</span>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          selectedVehicle.status === 'ACTIVE' ? 'bg-green-100 text-green-700' :
+                          selectedVehicle.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
+                          selectedVehicle.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                          'bg-blue-100 text-blue-700'
+                        }`}>
+                          {selectedVehicle.status === 'ACTIVE' ? 'Đã duyệt' :
+                           selectedVehicle.status === 'PENDING' ? 'Chờ duyệt' :
+                           selectedVehicle.status === 'REJECTED' ? 'Từ chối' :
+                           'Chuyển nhượng'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-2">
+                        <span className="text-gray-600 font-medium">Ngày đăng ký:</span>
+                        <span className="font-semibold">
+                          {selectedVehicle.registrationDate 
+                            ? new Date(selectedVehicle.registrationDate * 1000).toLocaleDateString('vi-VN')
+                            : 'Chưa rõ'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Rejection Reason */}
+                  {selectedVehicle.status === 'REJECTED' && selectedVehicle.rejectReason && (
+                    <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
+                      <div className="flex items-start">
+                        <XCircleIcon className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                        <div className="ml-3">
+                          <p className="text-sm font-medium text-red-800">Lý do từ chối:</p>
+                          <p className="text-sm text-red-700 mt-1">{selectedVehicle.rejectReason}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: Images */}
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 text-gray-900">Hình ảnh phương tiện</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {(() => {
+                        try {
+                          const photoHashes = JSON.parse(selectedVehicle.photoIpfsHash || '{}');
+                          const positions = [
+                            { key: 'front', label: 'Mặt trước' },
+                            { key: 'back', label: 'Mặt sau' },
+                            { key: 'left', label: 'Bên trái' },
+                            { key: 'right', label: 'Bên phải' }
+                          ];
+                          
+                          return positions.map(({ key, label }) => (
+                            <div key={key} className="border border-gray-300 rounded-lg p-3 bg-gray-50">
+                              <div className="aspect-video bg-gradient-to-br from-gray-200 to-gray-300 rounded mb-2 flex items-center justify-center overflow-hidden">
+                                {photoHashes[key] ? (
+                                  <img 
+                                    src={getIPFSUrl(photoHashes[key])}
+                                    alt={label}
+                                    className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                                    onClick={() => window.open(getIPFSUrl(photoHashes[key]), '_blank')}
+                                  />
+                                ) : (
+                                  <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  </svg>
+                                )}
+                              </div>
+                              <p className="text-xs text-center text-gray-600">{label}</p>
+                            </div>
+                          ));
+                        } catch (e) {
+                          return (
+                            <div className="col-span-2 text-center py-8 text-gray-500">
+                              <p>Không có hình ảnh</p>
+                            </div>
+                          );
+                        }
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

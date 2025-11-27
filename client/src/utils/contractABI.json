@@ -80,6 +80,11 @@
 				"internalType": "string",
 				"name": "_vin",
 				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "_reason",
+				"type": "string"
 			}
 		],
 		"name": "rejectVehicle",
@@ -102,6 +107,11 @@
 			{
 				"internalType": "string",
 				"name": "_plate",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "_brand",
 				"type": "string"
 			}
 		],
@@ -226,6 +236,11 @@
 						"type": "string"
 					},
 					{
+						"internalType": "string",
+						"name": "brand",
+						"type": "string"
+					},
+					{
 						"internalType": "address",
 						"name": "owner",
 						"type": "address"
@@ -239,6 +254,11 @@
 						"internalType": "enum VehicleRegistry.Status",
 						"name": "status",
 						"type": "uint8"
+					},
+					{
+						"internalType": "string",
+						"name": "rejectReason",
+						"type": "string"
 					},
 					{
 						"internalType": "uint256",
@@ -282,6 +302,11 @@
 						"type": "string"
 					},
 					{
+						"internalType": "string",
+						"name": "brand",
+						"type": "string"
+					},
+					{
 						"internalType": "address",
 						"name": "owner",
 						"type": "address"
@@ -295,6 +320,11 @@
 						"internalType": "enum VehicleRegistry.Status",
 						"name": "status",
 						"type": "uint8"
+					},
+					{
+						"internalType": "string",
+						"name": "rejectReason",
+						"type": "string"
 					},
 					{
 						"internalType": "uint256",
@@ -360,6 +390,11 @@
 				"type": "string"
 			},
 			{
+				"internalType": "string",
+				"name": "brand",
+				"type": "string"
+			},
+			{
 				"internalType": "address",
 				"name": "owner",
 				"type": "address"
@@ -373,6 +408,11 @@
 				"internalType": "enum VehicleRegistry.Status",
 				"name": "status",
 				"type": "uint8"
+			},
+			{
+				"internalType": "string",
+				"name": "rejectReason",
+				"type": "string"
 			},
 			{
 				"internalType": "uint256",

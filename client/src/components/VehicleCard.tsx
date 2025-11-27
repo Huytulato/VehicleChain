@@ -65,8 +65,7 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
               <div className="ml-3">
                 <p className="text-sm font-medium text-red-800">Lý do từ chối:</p>
                 <p className="text-sm text-red-700 mt-1">
-                  {/* TODO: Add rejection reason from contract */}
-                  Giấy tờ không hợp lệ hoặc thông tin không chính xác
+                  {vehicle.rejectReason || 'Giấy tờ không hợp lệ hoặc thông tin không chính xác'}
                 </p>
               </div>
             </div>

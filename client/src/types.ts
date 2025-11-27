@@ -48,6 +48,7 @@ export interface Vehicle {
   registrationDate?: number;
   photoIpfsHash?: string;
   documentIpfsHash?: string;
+  rejectReason?: string;
   photos?: {
     front?: string;
     back?: string;
