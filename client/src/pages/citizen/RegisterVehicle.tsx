@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Spinner from '../../components/Spinner';
 import { submitVehicle } from '../../services/blockchain';
 import { uploadMultipleFiles } from '../../services/ipfs';
+import { XMarkIcon, PhotoIcon, DocumentIcon } from '@heroicons/react/24/outline';
 
 const RegisterVehicle: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -17,7 +18,7 @@ const RegisterVehicle: React.FC = () => {
     color: '',
   });
 
-  // Photo upload state
+  // Photo upload state with preview URLs
   const [photos, setPhotos] = useState({
     front: null as File | null,
     back: null as File | null,
@@ -25,8 +26,16 @@ const RegisterVehicle: React.FC = () => {
     right: null as File | null,
   });
 
-  // Document upload state
-  const [document, setDocument] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState({
+    front: '' as string,
+    back: '' as string,
+    left: '' as string,
+    right: '' as string,
+  });
+
+  // Document upload state - now supports multiple files
+  const [documents, setDocuments] = useState<File[]>([]);
+  const [documentPreviews, setDocumentPreviews] = useState<string[]>([]);
 
   const steps = [
     { number: 1, title: 'Thông tin' },
@@ -41,7 +50,6 @@ const RegisterVehicle: React.FC = () => {
       ...formData,
       [name]: value,
     });
-    // Clear error when user types
     if (errors[name]) {
       setErrors({ ...errors, [name]: '' });
     }
@@ -79,15 +87,14 @@ const RegisterVehicle: React.FC = () => {
   };
 
   const validateStep3 = (): boolean => {
-    if (!document) {
-      alert('⚠️ Vui lòng tải lên giấy tờ pháp lý');
+    if (documents.length === 0) {
+      alert('⚠️ Vui lòng tải lên ít nhất 1 tài liệu pháp lý');
       return false;
     }
     return true;
   };
 
   const handleNext = () => {
-    // Validate current step before proceeding
     let isValid = false;
     
     if (currentStep === 1) {
@@ -109,16 +116,51 @@ const RegisterVehicle: React.FC = () => {
     }
   };
 
+  // Handle photo upload with preview
   const handlePhotoUpload = (position: 'front' | 'back' | 'left' | 'right') => (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setPhotos({ ...photos, [position]: e.target.files[0] });
+      const file = e.target.files[0];
+      setPhotos({ ...photos, [position]: file });
+      
+      // Create preview URL
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoPreview({ ...photoPreview, [position]: reader.result as string });
+      };
+      reader.readAsDataURL(file);
     }
   };
 
+  // Remove photo
+  const removePhoto = (position: 'front' | 'back' | 'left' | 'right') => {
+    setPhotos({ ...photos, [position]: null });
+    setPhotoPreview({ ...photoPreview, [position]: '' });
+  };
+
+  // Handle multiple documents upload with previews
   const handleDocumentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setDocument(e.target.files[0]);
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files);
+      const allFiles = [...documents, ...newFiles];
+      setDocuments(allFiles);
+      
+      // Create previews for new files
+      newFiles.forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setDocumentPreviews(prev => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      });
     }
+  };
+
+  // Remove document
+  const removeDocument = (index: number) => {
+    const newDocuments = documents.filter((_, i) => i !== index);
+    const newPreviews = documentPreviews.filter((_, i) => i !== index);
+    setDocuments(newDocuments);
+    setDocumentPreviews(newPreviews);
   };
 
   const handleSubmit = async () => {
@@ -133,9 +175,9 @@ const RegisterVehicle: React.FC = () => {
       };
       
       const photoHashes = await uploadMultipleFiles(photoFiles);
-      const photoIpfsHash = JSON.stringify(photoHashes); // Store all hashes as JSON string
+      const photoIpfsHash = JSON.stringify(photoHashes);
 
-      // Step 2: Submit to blockchain (MetaMask will pop up for confirmation)
+      // Step 2: Submit to blockchain
       const txHash = await submitVehicle(
         formData.vin,
         photoIpfsHash,
@@ -160,7 +202,14 @@ const RegisterVehicle: React.FC = () => {
         left: null,
         right: null,
       });
-      setDocument(null);
+      setPhotoPreview({
+        front: '',
+        back: '',
+        left: '',
+        right: '',
+      });
+      setDocuments([]);
+      setDocumentPreviews([]);
     } catch (error: any) {
       console.error('Submission error:', error);
       alert(`❌ Lỗi đăng ký: ${error.message || 'Vui lòng thử lại'}`);
@@ -296,49 +345,56 @@ const RegisterVehicle: React.FC = () => {
             <p className="text-gray-600">Vui lòng chụp ảnh xe từ 4 góc độ (bắt buộc)</p>
 
             <div className="grid md:grid-cols-2 gap-4">
-              {[{key: 'front', label: 'Mặt trước'}, {key: 'back', label: 'Mặt sau'}, {key: 'left', label: 'Bên trái'}, {key: 'right', label: 'Bên phải'}].map(({key, label}) => (
-                <label key={key} className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-500 transition-colors relative">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoUpload(key as 'front' | 'back' | 'left' | 'right')}
-                    className="hidden"
-                  />
-                  {photos[key as keyof typeof photos] ? (
-                    <div className="text-green-600">
-                      <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <p className="text-sm font-medium">Đã tải lên</p>
-                      <p className="text-xs mt-1">{photos[key as keyof typeof photos]?.name}</p>
+              {[
+                {key: 'front', label: 'Mặt trước'}, 
+                {key: 'back', label: 'Mặt sau'}, 
+                {key: 'left', label: 'Bên trái'}, 
+                {key: 'right', label: 'Bên phải'}
+              ].map(({key, label}) => (
+                <div key={key} className="relative">
+                  {photoPreview[key as keyof typeof photoPreview] ? (
+                    <div className="relative border-2 border-green-500 rounded-lg overflow-hidden group">
+                      <img 
+                        src={photoPreview[key as keyof typeof photoPreview]} 
+                        alt={label}
+                        className="w-full h-48 object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center">
+                        <button
+                          onClick={() => removePhoto(key as 'front' | 'back' | 'left' | 'right')}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity bg-red-600 text-white p-2 rounded-full hover:bg-red-700"
+                        >
+                          <XMarkIcon className="w-5 h-5" />
+                        </button>
+                      </div>
+                      <div className="absolute top-2 left-2 bg-green-600 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        {label}
+                      </div>
                     </div>
                   ) : (
-                    <>
-                      <svg
-                        className="w-12 h-12 mx-auto text-gray-400 mb-2"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                        />
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                      </svg>
+                    <label className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all block h-48 flex flex-col items-center justify-center">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoUpload(key as 'front' | 'back' | 'left' | 'right')}
+                        className="hidden"
+                      />
+                      <PhotoIcon className="w-12 h-12 text-gray-400 mb-2" />
                       <p className="text-sm font-medium text-gray-700">{label}</p>
                       <p className="text-xs text-gray-500 mt-1">Click để chọn ảnh</p>
-                    </>
+                    </label>
                   )}
-                </label>
+                </div>
               ))}
+            </div>
+
+            <div className="bg-blue-50 border-l-4 border-blue-600 p-4 rounded">
+              <p className="text-sm text-blue-800">
+                <strong>💡 Mẹo:</strong> Chụp ảnh ở nơi sáng, đảm bảo toàn bộ xe nằm trong khung hình và biển số rõ ràng.
+              </p>
             </div>
           </div>
         )}
@@ -358,30 +414,69 @@ const RegisterVehicle: React.FC = () => {
             <h2 className="text-2xl font-bold">
               Hồ sơ pháp lý <span className="text-red-500">*</span>
             </h2>
+            <p className="text-gray-600">Có thể tải lên nhiều tài liệu (Ảnh hoặc PDF)</p>
 
-            <label className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center block cursor-pointer hover:border-blue-500 transition-colors">
+            {/* Upload Button */}
+            <label className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center block cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all">
               <input
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png"
+                multiple
                 onChange={handleDocumentUpload}
                 className="hidden"
               />
-              {document ? (
-                <div className="text-green-600">
-                  <div className="text-6xl mb-4">✅</div>
-                  <p className="text-lg font-medium mb-2">Đã tải lên thành công</p>
-                  <p className="text-sm">{document.name}</p>
-                  <p className="text-xs text-gray-500 mt-2">Click để thay đổi</p>
-                </div>
-              ) : (
-                <>
-                  <div className="text-6xl mb-4">🔒</div>
-                  <p className="text-lg font-medium text-gray-700 mb-2">Tải lên giấy tờ pháp lý</p>
-                  <p className="text-sm text-gray-500 mb-4">Chứng nhận nguồn gốc, Hóa đơn mua bán, Giấy đăng ký xe...</p>
-                  <span className="btn btn-outline">Chọn tệp</span>
-                </>
-              )}
+              <DocumentIcon className="w-16 h-16 text-gray-400 mx-auto mb-3" />
+              <p className="text-lg font-medium text-gray-700 mb-2">Tải lên giấy tờ pháp lý</p>
+              <p className="text-sm text-gray-500 mb-4">Chứng nhận nguồn gốc, Hóa đơn mua bán, Giấy đăng ký xe...</p>
+              <span className="btn btn-outline">Chọn tệp (có thể chọn nhiều)</span>
             </label>
+
+            {/* Document Previews */}
+            {documents.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="font-semibold text-gray-900">
+                  Đã tải lên ({documents.length} tài liệu)
+                </h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  {documents.map((doc, index) => (
+                    <div key={index} className="relative border-2 border-green-500 rounded-lg p-4 bg-green-50 group">
+                      <div className="flex items-start space-x-3">
+                        {/* Preview or Icon */}
+                        <div className="flex-shrink-0">
+                          {doc.type.startsWith('image/') ? (
+                            <img 
+                              src={documentPreviews[index]} 
+                              alt={doc.name}
+                              className="w-16 h-16 object-cover rounded border border-gray-300"
+                            />
+                          ) : (
+                            <div className="w-16 h-16 bg-red-100 rounded flex items-center justify-center">
+                              <DocumentIcon className="w-8 h-8 text-red-600" />
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* File Info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{doc.name}</p>
+                          <p className="text-xs text-gray-500">
+                            {(doc.size / 1024).toFixed(2)} KB
+                          </p>
+                        </div>
+
+                        {/* Remove Button */}
+                        <button
+                          onClick={() => removeDocument(index)}
+                          className="flex-shrink-0 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <XMarkIcon className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -389,7 +484,9 @@ const RegisterVehicle: React.FC = () => {
           <div className="space-y-6">
             <h2 className="text-2xl font-bold">Xác nhận thông tin</h2>
 
+            {/* Vehicle Info */}
             <div className="bg-gray-50 rounded-lg p-6 space-y-4">
+              <h3 className="font-semibold text-lg mb-3">Thông tin phương tiện</h3>
               <div>
                 <p className="text-sm text-gray-600">Số khung (VIN)</p>
                 <p className="font-semibold">{formData.vin || '-'}</p>
@@ -407,6 +504,39 @@ const RegisterVehicle: React.FC = () => {
                   <p className="text-sm text-gray-600">Màu sơn</p>
                   <p className="font-semibold">{formData.color || '-'}</p>
                 </div>
+              </div>
+            </div>
+
+            {/* Photo Preview Grid */}
+            <div>
+              <h3 className="font-semibold text-lg mb-3">Hình ảnh đã tải ({Object.values(photoPreview).filter(p => p).length}/4)</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {Object.entries(photoPreview).map(([key, url]) => url && (
+                  <div key={key} className="relative">
+                    <img 
+                      src={url} 
+                      alt={key}
+                      className="w-full h-32 object-cover rounded-lg border-2 border-gray-200"
+                    />
+                    <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-xs">
+                      {key === 'front' ? 'Trước' : key === 'back' ? 'Sau' : key === 'left' ? 'Trái' : 'Phải'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Documents Preview */}
+            <div>
+              <h3 className="font-semibold text-lg mb-3">Hồ sơ pháp lý ({documents.length} tài liệu)</h3>
+              <div className="space-y-2">
+                {documents.map((doc, index) => (
+                  <div key={index} className="flex items-center space-x-3 bg-gray-50 p-3 rounded border">
+                    <DocumentIcon className="w-5 h-5 text-gray-500" />
+                    <span className="text-sm text-gray-700 flex-1 truncate">{doc.name}</span>
+                    <span className="text-xs text-gray-500">{(doc.size / 1024).toFixed(2)} KB</span>
+                  </div>
+                ))}
               </div>
             </div>
 
