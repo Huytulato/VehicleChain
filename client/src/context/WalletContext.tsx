@@ -9,7 +9,7 @@ import { checkKYCStatus, getUserKYC } from '../services/blockchain';
 // Admin addresses (hardcoded for development)
 // TODO: Move to smart contract in production
 const ADMIN_ADDRESSES: string[] = [
-'0xf1FAB2747579F6AC92085a921df8cbE6a6cFA20f'
+  '0xeaafb7e0ea438127a5f52dbd5fb56f5d8e9fe6f3'
 ].map(addr => addr.toLowerCase());
 
 interface WalletContextType {
@@ -89,11 +89,11 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       // eth_requestAccounts sẽ trigger MetaMask popup để người dùng duyệt
       const provider = new ethers.BrowserProvider(window.ethereum);
       const accounts = await provider.send('eth_requestAccounts', []);
-      
+
       if (!accounts || accounts.length === 0) {
         throw new Error('Không có tài khoản nào được chọn. Vui lòng chọn tài khoản trong MetaMask.');
       }
-      
+
       setAccount(accounts[0]);
     } catch (error: any) {
       console.error('Error connecting wallet:', error);

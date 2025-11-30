@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Spinner from '../../components/Spinner';
 import { submitVehicle } from '../../services/blockchain';
-import { uploadMultipleFiles } from '../../services/ipfs';
+import { uploadMultipleFiles, uploadFileToIPFS } from '../../services/ipfs';
 import { XMarkIcon, PhotoIcon, DocumentIcon } from '@heroicons/react/24/outline';
 
 interface RegisterVehicleProps {
@@ -13,7 +13,7 @@ const LOCAL_STORAGE_KEY_PREFIX = 'vehicleForm_';
 const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   // Form data
   const [formData, setFormData] = useState({
@@ -98,8 +98,8 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
   }, [formData]);
 
   const validateStep1 = (): boolean => {
-    const newErrors: {[key: string]: string} = {};
-    
+    const newErrors: { [key: string]: string } = {};
+
     if (!formData.vin.trim()) {
       newErrors.vin = 'Số khung là bắt buộc';
     }
@@ -138,7 +138,7 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
 
   const handleNext = () => {
     let isValid = false;
-    
+
     if (currentStep === 1) {
       isValid = validateStep1();
     } else if (currentStep === 2) {
@@ -163,7 +163,7 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setPhotos({ ...photos, [position]: file });
-      
+
       // Create preview URL
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -185,7 +185,7 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
       const newFiles = Array.from(e.target.files);
       const allFiles = [...documents, ...newFiles];
       setDocuments(allFiles);
-      
+
       // Create previews for new files
       newFiles.forEach(file => {
         const reader = new FileReader();
@@ -215,11 +215,32 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
         left: photos.left!,
         right: photos.right!,
       };
-      
-      const photoHashes = await uploadMultipleFiles(photoFiles);
-      const photoIpfsHash = JSON.stringify(photoHashes);
 
-      // Step 2: Submit to blockchain
+      const photoHashes = await uploadMultipleFiles(photoFiles);
+
+      // Step 2: Upload documents to IPFS
+      const documentData = [];
+      if (documents.length > 0) {
+        for (const doc of documents) {
+          const hash = await uploadFileToIPFS(doc);
+          documentData.push({
+            name: doc.name,
+            hash: hash,
+            type: doc.type,
+            size: doc.size
+          });
+        }
+      }
+
+      // Combine photos and documents into one JSON object
+      const combinedData = {
+        ...photoHashes,
+        documents: documentData
+      };
+
+      const photoIpfsHash = JSON.stringify(combinedData);
+
+      // Step 3: Submit to blockchain
       const txHash = await submitVehicle(
         formData.vin,
         photoIpfsHash,
@@ -228,7 +249,7 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
       );
 
       alert(`✅ Đăng ký thành công!\nTransaction Hash: ${txHash}\n\nHồ sơ đang chờ cơ quan duyệt.`);
-      
+
       // Reset form
       setCurrentStep(1);
       setFormData({
@@ -388,16 +409,16 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
 
             <div className="grid md:grid-cols-2 gap-4">
               {[
-                {key: 'front', label: 'Mặt trước'}, 
-                {key: 'back', label: 'Mặt sau'}, 
-                {key: 'left', label: 'Bên trái'}, 
-                {key: 'right', label: 'Bên phải'}
-              ].map(({key, label}) => (
+                { key: 'front', label: 'Mặt trước' },
+                { key: 'back', label: 'Mặt sau' },
+                { key: 'left', label: 'Bên trái' },
+                { key: 'right', label: 'Bên phải' }
+              ].map(({ key, label }) => (
                 <div key={key} className="relative">
                   {photoPreview[key as keyof typeof photoPreview] ? (
                     <div className="relative border-2 border-green-500 rounded-lg overflow-hidden group">
-                      <img 
-                        src={photoPreview[key as keyof typeof photoPreview]} 
+                      <img
+                        src={photoPreview[key as keyof typeof photoPreview]}
                         alt={label}
                         className="w-full h-48 object-cover"
                       />
@@ -486,8 +507,8 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
                         {/* Preview or Icon */}
                         <div className="flex-shrink-0">
                           {doc.type.startsWith('image/') ? (
-                            <img 
-                              src={documentPreviews[index]} 
+                            <img
+                              src={documentPreviews[index]}
                               alt={doc.name}
                               className="w-16 h-16 object-cover rounded border border-gray-300"
                             />
@@ -497,7 +518,7 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
                             </div>
                           )}
                         </div>
-                        
+
                         {/* File Info */}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">{doc.name}</p>
@@ -555,8 +576,8 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {Object.entries(photoPreview).map(([key, url]) => url && (
                   <div key={key} className="relative">
-                    <img 
-                      src={url} 
+                    <img
+                      src={url}
                       alt={key}
                       className="w-full h-32 object-cover rounded-lg border-2 border-gray-200"
                     />

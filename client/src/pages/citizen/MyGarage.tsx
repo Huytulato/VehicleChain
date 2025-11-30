@@ -154,7 +154,7 @@ const MyGarage: React.FC<MyGarageProps> = ({ onRegisterClick }) => {
           </p>
           {onRegisterClick && (
             <button
-              onClick={onRegisterClick}
+              onClick={() => onRegisterClick && onRegisterClick()}
               className="inline-flex items-center px-8 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg hover:shadow-xl transition-all font-medium text-lg"
             >
               <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -208,22 +208,21 @@ const MyGarage: React.FC<MyGarageProps> = ({ onRegisterClick }) => {
                       </div>
                       <div className="flex justify-between py-2 border-b border-gray-200">
                         <span className="text-gray-600 font-medium">Trạng thái:</span>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          selectedVehicle.status === 'ACTIVE' ? 'bg-green-100 text-green-700' :
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${selectedVehicle.status === 'ACTIVE' ? 'bg-green-100 text-green-700' :
                           selectedVehicle.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
-                          selectedVehicle.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
-                          'bg-blue-100 text-blue-700'
-                        }`}>
+                            selectedVehicle.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                              'bg-blue-100 text-blue-700'
+                          }`}>
                           {selectedVehicle.status === 'ACTIVE' ? 'Đã duyệt' :
-                           selectedVehicle.status === 'PENDING' ? 'Chờ duyệt' :
-                           selectedVehicle.status === 'REJECTED' ? 'Từ chối' :
-                           'Chuyển nhượng'}
+                            selectedVehicle.status === 'PENDING' ? 'Chờ duyệt' :
+                              selectedVehicle.status === 'REJECTED' ? 'Từ chối' :
+                                'Chuyển nhượng'}
                         </span>
                       </div>
                       <div className="flex justify-between py-2">
                         <span className="text-gray-600 font-medium">Ngày đăng ký:</span>
                         <span className="font-semibold">
-                          {selectedVehicle.registrationDate 
+                          {selectedVehicle.registrationDate
                             ? new Date(selectedVehicle.registrationDate * 1000).toLocaleDateString('vi-VN')
                             : 'Chưa rõ'}
                         </span>
@@ -259,12 +258,12 @@ const MyGarage: React.FC<MyGarageProps> = ({ onRegisterClick }) => {
                             { key: 'left', label: 'Bên trái' },
                             { key: 'right', label: 'Bên phải' }
                           ];
-                          
+
                           return positions.map(({ key, label }) => (
                             <div key={key} className="border border-gray-300 rounded-lg p-3 bg-gray-50">
                               <div className="aspect-video bg-gradient-to-br from-gray-200 to-gray-300 rounded mb-2 flex items-center justify-center overflow-hidden">
                                 {photoHashes[key] ? (
-                                  <img 
+                                  <img
                                     src={getIPFSUrl(photoHashes[key])}
                                     alt={label}
                                     className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
@@ -286,6 +285,53 @@ const MyGarage: React.FC<MyGarageProps> = ({ onRegisterClick }) => {
                               <p>Không có hình ảnh</p>
                             </div>
                           );
+                        }
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Legal Documents */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 text-gray-900">Hồ sơ pháp lý</h3>
+                    <div className="space-y-2">
+                      {(() => {
+                        try {
+                          const data = JSON.parse(selectedVehicle.photoIpfsHash || '{}');
+                          const documents = data.documents || [];
+
+                          if (!documents || documents.length === 0) {
+                            return (
+                              <div className="text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-300 text-gray-500 text-sm">
+                                Không có hồ sơ pháp lý
+                              </div>
+                            );
+                          }
+
+                          return documents.map((doc: any, index: number) => (
+                            <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-blue-50 transition-colors">
+                              <div className="flex items-center space-x-3 overflow-hidden">
+                                <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded flex items-center justify-center text-blue-600">
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 truncate max-w-[150px]">{doc.name}</p>
+                                  <p className="text-xs text-gray-500">{(doc.size / 1024).toFixed(2)} KB</p>
+                                </div>
+                              </div>
+                              <a
+                                href={getIPFSUrl(doc.hash)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-shrink-0 ml-2 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 rounded hover:bg-blue-200 transition-colors"
+                              >
+                                Xem
+                              </a>
+                            </div>
+                          ));
+                        } catch (e) {
+                          return null;
                         }
                       })()}
                     </div>
@@ -360,7 +406,7 @@ const MyGarage: React.FC<MyGarageProps> = ({ onRegisterClick }) => {
               <button
                 onClick={async () => {
                   if (!selectedVehicle) return;
-                  
+
                   // Validation: Kiểm tra địa chỉ có được nhập không
                   if (!transferAddress || !transferAddress.trim()) {
                     alert('⚠️ Vui lòng nhập địa chỉ ví người nhận');

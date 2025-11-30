@@ -38,7 +38,7 @@ const AuthorityDashboard: React.FC = () => {
     }
   };
 
-  const filteredVehicles = vehicles.filter(v => 
+  const filteredVehicles = vehicles.filter(v =>
     v.vin.toLowerCase().includes(searchQuery.toLowerCase()) ||
     v.licensePlate.toLowerCase().includes(searchQuery.toLowerCase()) ||
     v.brand.toLowerCase().includes(searchQuery.toLowerCase())
@@ -51,7 +51,7 @@ const AuthorityDashboard: React.FC = () => {
 
   const handleApprove = async () => {
     if (!selectedVehicle) return;
-    
+
     try {
       if (selectedVehicle.status === 'TRANSFERRING') {
         await approveTransfer(selectedVehicle.vin);
@@ -62,7 +62,7 @@ const AuthorityDashboard: React.FC = () => {
       }
       setShowDetailModal(false);
       setSelectedVehicle(null);
-      loadAllVehicles();
+      await loadAllVehicles();
     } catch (error) {
       console.error('Error approving vehicle:', error);
       alert('❌ Lỗi khi duyệt hồ sơ: ' + (error as Error).message);
@@ -71,13 +71,13 @@ const AuthorityDashboard: React.FC = () => {
 
   const handleReject = async () => {
     if (!selectedVehicle) return;
-    
+
     const reason = prompt('Nhập lý do từ chối (bắt buộc):', 'Giấy tờ không hợp lệ');
     if (!reason || !reason.trim()) {
       alert('⚠️ Vui lòng nhập lý do từ chối');
       return;
     }
-    
+
     try {
       await rejectVehicle(selectedVehicle.vin, reason);
       alert('❌ Đã từ chối hồ sơ');
@@ -91,27 +91,27 @@ const AuthorityDashboard: React.FC = () => {
   };
 
   const tabs = [
-    { 
-      id: 'pending' as TabType, 
-      label: 'Chờ duyệt', 
+    {
+      id: 'pending' as TabType,
+      label: 'Chờ duyệt',
       icon: ClockIcon,
       count: vehicles.filter(v => v.status === 'PENDING' || v.status === 'TRANSFERRING').length
     },
-    { 
-      id: 'approved' as TabType, 
-      label: 'Đã duyệt', 
+    {
+      id: 'approved' as TabType,
+      label: 'Đã duyệt',
       icon: CheckCircleIcon,
       count: vehicles.filter(v => v.status === 'ACTIVE').length
     },
-    { 
-      id: 'rejected' as TabType, 
-      label: 'Từ chối', 
+    {
+      id: 'rejected' as TabType,
+      label: 'Từ chối',
       icon: XCircleIcon,
       count: vehicles.filter(v => v.status === 'REJECTED').length
     },
-    { 
-      id: 'all' as TabType, 
-      label: 'Tất cả', 
+    {
+      id: 'all' as TabType,
+      label: 'Tất cả',
       icon: DocumentTextIcon,
       count: vehicles.length
     },
@@ -199,20 +199,18 @@ const AuthorityDashboard: React.FC = () => {
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
-                      className={`flex items-center px-4 py-2 rounded-lg font-medium transition-all ${
-                        activeTab === tab.id
-                          ? 'bg-indigo-600 text-white shadow-md'
-                          : 'text-gray-600 hover:bg-gray-100'
-                      }`}
+                      className={`flex items-center px-4 py-2 rounded-lg font-medium transition-all ${activeTab === tab.id
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'text-gray-600 hover:bg-gray-100'
+                        }`}
                     >
                       <IconComponent className="w-5 h-5 mr-2" />
                       {tab.label}
                       {tab.count !== undefined && (
-                        <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${
-                          activeTab === tab.id 
-                            ? 'bg-white text-indigo-600' 
-                            : 'bg-gray-200 text-gray-700'
-                        }`}>
+                        <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === tab.id
+                          ? 'bg-white text-indigo-600'
+                          : 'bg-gray-200 text-gray-700'
+                          }`}>
                           {tab.count}
                         </span>
                       )}
@@ -252,9 +250,8 @@ const AuthorityDashboard: React.FC = () => {
                         <div key={vehicle.vin} className="border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow bg-white">
                           <div className="flex items-center gap-6">
                             <div className="flex-shrink-0">
-                              <div className={`w-20 h-20 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center border-2 border-gray-300 ${
-                                vehicle.applicationType === 'TRANSFER' ? 'bg-purple-100' : ''
-                              }`}>
+                              <div className={`w-20 h-20 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center border-2 border-gray-300 ${vehicle.applicationType === 'TRANSFER' ? 'bg-purple-100' : ''
+                                }`}>
                                 {vehicle.photoIpfsHash ? (
                                   <img src={`https://ipfs.io/ipfs/${vehicle.photoIpfsHash}`} alt={vehicle.brand} className="w-full h-full object-cover rounded-lg" />
                                 ) : (
@@ -274,11 +271,10 @@ const AuthorityDashboard: React.FC = () => {
                                     {vehicle.brand}
                                   </h3>
                                   <div className="flex items-center gap-2">
-                                    <span className={`px-3 py-1 text-xs rounded-full font-medium ${
-                                      vehicle.applicationType === 'TRANSFER'
-                                        ? 'bg-purple-100 text-purple-700'
-                                        : 'bg-blue-100 text-blue-700'
-                                    }`}>
+                                    <span className={`px-3 py-1 text-xs rounded-full font-medium ${vehicle.applicationType === 'TRANSFER'
+                                      ? 'bg-purple-100 text-purple-700'
+                                      : 'bg-blue-100 text-blue-700'
+                                      }`}>
                                       {vehicle.applicationType === 'TRANSFER' ? '🔄 Chuyển nhượng' : '📝 Đăng ký mới'}
                                     </span>
                                     <span className="px-3 py-1 bg-amber-100 text-amber-700 text-xs rounded-full font-medium">
@@ -343,17 +339,56 @@ const AuthorityDashboard: React.FC = () => {
                         <div key={vehicle.vin} className="border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow bg-white">
                           <div className="flex items-center gap-6">
                             <div className="flex-shrink-0">
-                              <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-                                <CheckCircleIcon className="w-8 h-8 text-green-600" />
+                              <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-green-100 to-green-200 flex items-center justify-center border-2 border-green-300">
+                                {vehicle.photoIpfsHash ? (
+                                  <img src={`https://ipfs.io/ipfs/${vehicle.photoIpfsHash}`} alt={vehicle.brand} className="w-full h-full object-cover rounded-lg" />
+                                ) : (
+                                  <CheckCircleIcon className="w-10 h-10 text-green-600" />
+                                )}
                               </div>
                             </div>
+
                             <div className="flex-1 min-w-0">
-                              <h3 className="text-lg font-semibold text-gray-900">
-                                {vehicle.licensePlate} - {vehicle.brand}
-                              </h3>
-                              <p className="text-xs text-gray-500 font-mono">
-                                VIN: {vehicle.vin}
-                              </p>
+                              <div className="flex items-start justify-between mb-3">
+                                <div>
+                                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                                    {vehicle.brand}
+                                  </h3>
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-3 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                                      Đã duyệt
+                                    </span>
+                                    <span className="text-xs text-gray-500">
+                                      {vehicle.registrationDate ? new Date(vehicle.registrationDate * 1000).toLocaleDateString('vi-VN') : 'Chưa rõ'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="grid md:grid-cols-3 gap-4 text-sm">
+                                <div className="flex items-center text-gray-600">
+                                  <span className="font-medium">VIN:</span>
+                                  <span className="ml-1 font-mono text-xs">{vehicle.vin}</span>
+                                </div>
+                                <div className="flex items-center text-gray-600">
+                                  <span className="font-medium">Biển số:</span>
+                                  <span className="ml-1 font-semibold">{vehicle.licensePlate}</span>
+                                </div>
+                                <div className="flex items-center text-gray-600">
+                                  <span className="font-medium">Chủ xe:</span>
+                                  <span className="ml-1 font-mono text-xs">{vehicle.owner}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex-shrink-0">
+                              <button
+                                onClick={() => handleReview(vehicle)}
+                                className="flex items-center px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all shadow-md hover:shadow-lg font-medium"
+                              >
+                                <EyeIcon className="w-5 h-5 mr-2" />
+                                Xem chi tiết
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -376,22 +411,62 @@ const AuthorityDashboard: React.FC = () => {
                         <div key={vehicle.vin} className="border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow bg-white">
                           <div className="flex items-center gap-6">
                             <div className="flex-shrink-0">
-                              <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
-                                <XCircleIcon className="w-8 h-8 text-red-600" />
+                              <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-red-100 to-red-200 flex items-center justify-center border-2 border-red-300">
+                                {vehicle.photoIpfsHash ? (
+                                  <img src={`https://ipfs.io/ipfs/${vehicle.photoIpfsHash}`} alt={vehicle.brand} className="w-full h-full object-cover rounded-lg" />
+                                ) : (
+                                  <XCircleIcon className="w-10 h-10 text-red-600" />
+                                )}
                               </div>
                             </div>
+
                             <div className="flex-1 min-w-0">
-                              <h3 className="text-lg font-semibold text-gray-900">
-                                {vehicle.licensePlate} - {vehicle.brand}
-                              </h3>
-                              <p className="text-xs text-gray-500 font-mono">
-                                VIN: {vehicle.vin}
-                              </p>
-                              {vehicle.rejectReason && (
-                                <p className="mt-1 text-xs text-red-600">
-                                  Lý do: {vehicle.rejectReason}
-                                </p>
-                              )}
+                              <div className="flex items-start justify-between mb-3">
+                                <div>
+                                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                                    {vehicle.brand}
+                                  </h3>
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-3 py-1 bg-red-100 text-red-700 text-xs rounded-full font-medium">
+                                      Từ chối
+                                    </span>
+                                    <span className="text-xs text-gray-500">
+                                      {vehicle.registrationDate ? new Date(vehicle.registrationDate * 1000).toLocaleDateString('vi-VN') : 'Chưa rõ'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="grid md:grid-cols-3 gap-4 text-sm">
+                                <div className="flex items-center text-gray-600">
+                                  <span className="font-medium">VIN:</span>
+                                  <span className="ml-1 font-mono text-xs">{vehicle.vin}</span>
+                                </div>
+                                <div className="flex items-center text-gray-600">
+                                  <span className="font-medium">Biển số:</span>
+                                  <span className="ml-1 font-semibold">{vehicle.licensePlate}</span>
+                                </div>
+                                <div className="flex items-center text-gray-600">
+                                  <span className="font-medium">Chủ xe:</span>
+                                  <span className="ml-1 font-mono text-xs">{vehicle.owner}</span>
+                                </div>
+                                {vehicle.rejectReason && (
+                                  <div className="col-span-3 flex items-start text-red-600">
+                                    <span className="font-medium">Lý do từ chối:</span>
+                                    <span className="ml-1 text-xs">{vehicle.rejectReason}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex-shrink-0">
+                              <button
+                                onClick={() => handleReview(vehicle)}
+                                className="flex items-center px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all shadow-md hover:shadow-lg font-medium"
+                              >
+                                <EyeIcon className="w-5 h-5 mr-2" />
+                                Xem chi tiết
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -408,35 +483,75 @@ const AuthorityDashboard: React.FC = () => {
 
                 {activeTab === 'all' && (
                   <div className="space-y-3">
-                    {filteredVehicles.map((vehicle) => (
-                      <div key={vehicle.vin} className="border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow bg-white">
-                        <div className="flex items-center gap-6">
-                          <div className="flex-shrink-0">
-                            <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center">
-                              <DocumentTextIcon className="w-8 h-8 text-indigo-600" />
+                    {filteredVehicles.map((vehicle) => {
+                      const statusConfig = {
+                        ACTIVE: { bg: 'bg-green-100', text: 'text-green-700', label: 'Đã duyệt', icon: CheckCircleIcon },
+                        PENDING: { bg: 'bg-amber-100', text: 'text-amber-700', label: 'Chờ duyệt đăng ký', icon: ClockIcon },
+                        TRANSFERRING: { bg: 'bg-purple-100', text: 'text-purple-700', label: 'Chờ duyệt chuyển nhượng', icon: ArrowPathRoundedSquareIcon },
+                        REJECTED: { bg: 'bg-red-100', text: 'text-red-700', label: 'Từ chối', icon: XCircleIcon }
+                      };
+                      const config = statusConfig[vehicle.status] || statusConfig.PENDING;
+                      const StatusIcon = config.icon;
+
+                      return (
+                        <div key={vehicle.vin} className="border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow bg-white">
+                          <div className="flex items-center gap-6">
+                            <div className="flex-shrink-0">
+                              <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center border-2 border-gray-300">
+                                {vehicle.photoIpfsHash ? (
+                                  <img src={`https://ipfs.io/ipfs/${vehicle.photoIpfsHash}`} alt={vehicle.brand} className="w-full h-full object-cover rounded-lg" />
+                                ) : (
+                                  <StatusIcon className="w-10 h-10 text-gray-400" />
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between mb-3">
+                                <div>
+                                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                                    {vehicle.brand}
+                                  </h3>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-3 py-1 ${config.bg} ${config.text} text-xs rounded-full font-medium`}>
+                                      {config.label}
+                                    </span>
+                                    <span className="text-xs text-gray-500">
+                                      {vehicle.registrationDate ? new Date(vehicle.registrationDate * 1000).toLocaleDateString('vi-VN') : 'Chưa rõ'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="grid md:grid-cols-3 gap-4 text-sm">
+                                <div className="flex items-center text-gray-600">
+                                  <span className="font-medium">VIN:</span>
+                                  <span className="ml-1 font-mono text-xs">{vehicle.vin}</span>
+                                </div>
+                                <div className="flex items-center text-gray-600">
+                                  <span className="font-medium">Biển số:</span>
+                                  <span className="ml-1 font-semibold">{vehicle.licensePlate}</span>
+                                </div>
+                                <div className="flex items-center text-gray-600">
+                                  <span className="font-medium">Chủ xe:</span>
+                                  <span className="ml-1 font-mono text-xs">{vehicle.owner}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex-shrink-0">
+                              <button
+                                onClick={() => handleReview(vehicle)}
+                                className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg font-medium"
+                              >
+                                <EyeIcon className="w-5 h-5 mr-2" />
+                                Xem chi tiết
+                              </button>
                             </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-lg font-semibold text-gray-900">
-                              {vehicle.licensePlate} - {vehicle.brand}
-                            </h3>
-                            <p className="text-xs text-gray-500 font-mono">
-                              VIN: {vehicle.vin}
-                            </p>
-                            <p className="mt-1 text-xs text-gray-600">
-                              Trạng thái:{' '}
-                              {vehicle.status === 'ACTIVE'
-                                ? 'Đã duyệt'
-                                : vehicle.status === 'PENDING'
-                                ? 'Chờ duyệt đăng ký'
-                                : vehicle.status === 'TRANSFERRING'
-                                ? 'Chờ duyệt chuyển nhượng'
-                                : 'Từ chối'}
-                            </p>
-                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
                     {filteredVehicles.length === 0 && (
                       <div className="text-center py-16 text-gray-500">
@@ -518,12 +633,12 @@ const AuthorityDashboard: React.FC = () => {
                             { key: 'left', label: 'Bên trái' },
                             { key: 'right', label: 'Bên phải' }
                           ];
-                          
+
                           return positions.map(({ key, label }) => (
                             <div key={key} className="border border-gray-300 rounded-lg p-3 bg-gray-50">
                               <div className="aspect-video bg-gradient-to-br from-gray-200 to-gray-300 rounded mb-2 flex items-center justify-center overflow-hidden">
                                 {photoHashes[key] ? (
-                                  <img 
+                                  <img
                                     src={getIPFSUrl(photoHashes[key])}
                                     alt={label}
                                     className="w-full h-full object-cover"
@@ -538,10 +653,57 @@ const AuthorityDashboard: React.FC = () => {
                               <p className="text-xs text-center text-gray-600">{label}</p>
                             </div>
                           ));
-                        } catch (e) {
+                        } catch {
                           return null;
                         }
                       })()}
+                    </div>
+
+                    {/* Legal Documents */}
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4 text-gray-900">Hồ sơ pháp lý</h3>
+                      <div className="space-y-2">
+                        {(() => {
+                          try {
+                            const data = JSON.parse(selectedVehicle.photoIpfsHash || '{}');
+                            const documents = data.documents || [];
+
+                            if (!documents || documents.length === 0) {
+                              return (
+                                <div className="text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-300 text-gray-500 text-sm">
+                                  Không có hồ sơ pháp lý
+                                </div>
+                              );
+                            }
+
+                            return documents.map((doc: any, index: number) => (
+                              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-blue-50 transition-colors">
+                                <div className="flex items-center space-x-3 overflow-hidden">
+                                  <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded flex items-center justify-center text-blue-600">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium text-gray-900 truncate max-w-[150px]">{doc.name}</p>
+                                    <p className="text-xs text-gray-500">{(doc.size / 1024).toFixed(2)} KB</p>
+                                  </div>
+                                </div>
+                                <a
+                                  href={getIPFSUrl(doc.hash)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex-shrink-0 ml-2 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 rounded hover:bg-blue-200 transition-colors"
+                                >
+                                  Xem
+                                </a>
+                              </div>
+                            ));
+                          } catch (e) {
+                            return null;
+                          }
+                        })()}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -579,7 +741,7 @@ const AuthorityDashboard: React.FC = () => {
           </div>
         )}
       </div>
-    </div>
+    </div >
   );
 };
 
