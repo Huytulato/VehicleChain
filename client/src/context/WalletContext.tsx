@@ -4,13 +4,12 @@ import type { ReactNode } from 'react';
 import { ethers } from 'ethers';
 import type { User } from '../types';
 import { UserRole } from '../types';
-import { checkKYCStatus, getUserKYC } from '../services/blockchain';
+// import { checkKYCStatus, getUserKYC } from '../services/blockchain'; // Removed as we use getUserProfile dynamically
 
-// Admin addresses (hardcoded for development)
-// TODO: Move to smart contract in production
+// Admin addresses (from env)
 const ADMIN_ADDRESSES: string[] = [
-  '0xeaafb7e0ea438127a5f52dbd5fb56f5d8e9fe6f3'
-].map(addr => addr.toLowerCase());
+  import.meta.env.VITE_ADMIN_ADDRESS || ''
+].filter(Boolean).map(addr => addr.toLowerCase());
 
 interface WalletContextType {
   account: string | null;
@@ -114,29 +113,28 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const loadUserData = async (address: string) => {
     try {
-      // Check if user is admin
-      const isAdmin = ADMIN_ADDRESSES.includes(address.toLowerCase());
-      const userRole = isAdmin ? UserRole.AUTHORITY : UserRole.CITIZEN;
+      console.log('🔄 Loading user data for:', address);
+      // Import dynamically to avoid circular dependencies if any, or just import at top
+      const { getUserProfile } = await import('../services/blockchain');
 
-      const isKYCVerified = await checkKYCStatus(address);
+      const userProfile = await getUserProfile(address);
 
-      if (isKYCVerified) {
-        const kycData = await getUserKYC(address);
-        setUser({
-          address,
-          fullName: kycData?.fullName || (isAdmin ? 'Admin User' : 'User'),
-          isKYCVerified: true,
-          role: userRole,
-        });
+      if (userProfile) {
+        console.log('✅ User profile loaded:', userProfile);
+        setUser(userProfile);
       } else {
+        console.log('⚠️ No profile found, using fallback');
+        // Fallback if profile fetch fails (e.g. not registered)
+        // Check if hardcoded admin
+        const isAdmin = ADMIN_ADDRESSES.includes(address.toLowerCase());
         setUser({
           address,
           isKYCVerified: false,
-          role: userRole,
+          role: isAdmin ? UserRole.AUTHORITY : UserRole.CITIZEN,
         });
       }
     } catch (error) {
-      console.error('Error loading user data:', error);
+      console.error('❌ Error loading user data:', error);
       setUser({
         address,
         isKYCVerified: false,

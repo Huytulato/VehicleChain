@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../../context/WalletContext';
-import { ClockIcon, CheckCircleIcon, DocumentTextIcon, BuildingLibraryIcon, MagnifyingGlassIcon, EyeIcon, XMarkIcon, XCircleIcon, ArrowPathRoundedSquareIcon } from '@heroicons/react/24/outline';
+import { ClockIcon, CheckCircleIcon, DocumentTextIcon, BuildingLibraryIcon, MagnifyingGlassIcon, EyeIcon, XMarkIcon, XCircleIcon, ArrowPathRoundedSquareIcon, DocumentMagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { getAllVehiclesForAuthority, approveVehicle, approveTransfer, rejectVehicle } from '../../services/blockchain';
 import { getIPFSUrl } from '../../services/ipfs';
 import type { Vehicle } from '../../types';
+import { decryptData } from '../../utils/encryption';
 
 type TabType = 'pending' | 'approved' | 'rejected' | 'all';
 
 const AuthorityDashboard: React.FC = () => {
-  const { account } = useWallet();
+  const { account, user } = useWallet();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('pending');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [ownerInfo, setOwnerInfo] = useState<any>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,10 +23,13 @@ const AuthorityDashboard: React.FC = () => {
   useEffect(() => {
     if (!account) {
       navigate('/');
+    } else if (user && user.role !== 'AUTHORITY') {
+      // Redirect non-authority users to citizen dashboard
+      navigate('/dashboard');
     } else {
       loadAllVehicles();
     }
-  }, [account, navigate]);
+  }, [account, user, navigate]);
 
   const loadAllVehicles = async () => {
     setLoading(true);
@@ -44,9 +49,18 @@ const AuthorityDashboard: React.FC = () => {
     v.brand.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleReview = (vehicle: Vehicle) => {
+  const handleReview = async (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle);
     setShowDetailModal(true);
+    // Fetch owner info
+    try {
+      const { getUserKYC } = await import('../../services/blockchain');
+      const info = await getUserKYC(vehicle.owner);
+      setOwnerInfo(info);
+    } catch (e) {
+      console.error('Error fetching owner info:', e);
+      setOwnerInfo(null);
+    }
   };
 
   const handleApprove = async () => {
@@ -131,6 +145,15 @@ const AuthorityDashboard: React.FC = () => {
               <p className="text-gray-600">Quản lý và phê duyệt hồ sơ đăng ký phương tiện</p>
             </div>
           </div>
+          
+          {/* Search Vehicle Button */}
+          <button
+            onClick={() => navigate('/authority/search')}
+            className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-lg hover:shadow-xl transition-all font-medium"
+          >
+            <DocumentMagnifyingGlassIcon className="w-5 h-5 mr-2" />
+            Tra cứu phương tiện
+          </button>
         </div>
 
         {/* Stats Overview */}
@@ -606,6 +629,14 @@ const AuthorityDashboard: React.FC = () => {
                         <span className="text-gray-600 font-medium">Chủ sở hữu:</span>
                         <span className="font-mono text-sm">{selectedVehicle.owner}</span>
                       </div>
+                      {ownerInfo && (
+                        <div className="flex justify-between py-2 border-b border-gray-200">
+                          <span className="text-gray-600 font-medium">Họ tên (KYC):</span>
+                          <span className="font-semibold text-blue-700">
+                            {decryptData(ownerInfo.fullName)}
+                          </span>
+                        </div>
+                      )}
                       {selectedVehicle.applicationType === 'TRANSFER' && selectedVehicle.pendingBuyer && (
                         <div className="flex justify-between py-2 border-b border-gray-200">
                           <span className="text-gray-600 font-medium">Đến ví:</span>

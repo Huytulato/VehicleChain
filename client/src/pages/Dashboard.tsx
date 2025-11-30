@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
-import { TruckIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { TruckIcon, MagnifyingGlassIcon, ArrowsRightLeftIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { getAllVehiclesForAuthority } from '../services/blockchain';
 import type { Vehicle } from '../types';
 import MyGarage from './citizen/MyGarage';
 import RegisterVehicle from './citizen/RegisterVehicle';
+import KYCModal from '../components/KYCModal';
 
 type TabType = 'garage' | 'search';
 
 const Dashboard: React.FC = () => {
-  const { account } = useWallet();
+  const { account, user, updateUser } = useWallet();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('garage');
   const [showRegisterForm, setShowRegisterForm] = useState(false);
@@ -19,12 +20,19 @@ const Dashboard: React.FC = () => {
   const [searchResult, setSearchResult] = useState<Vehicle | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [showKYCModal, setShowKYCModal] = useState(false);
 
   useEffect(() => {
     if (!account) {
       navigate('/');
+    } else if (user?.role === 'AUTHORITY') {
+      // Redirect authority to authority dashboard
+      navigate('/authority');
+    } else if (user && !user.isKYCVerified) {
+      // Show KYC modal for unverified users
+      setShowKYCModal(true);
     }
-  }, [account, navigate]);
+  }, [account, user, navigate]);
 
   const tabs = [
     { 
@@ -96,6 +104,16 @@ const Dashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       <div className="container mx-auto px-4 py-8">
+        {/* KYC Modal */}
+        <KYCModal
+          isOpen={showKYCModal}
+          onClose={() => setShowKYCModal(false)}
+          onSuccess={() => {
+            // Reload user profile after successful KYC
+            window.location.reload();
+          }}
+        />
+
         {/* Page Header with CTA Button */}
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -103,16 +121,32 @@ const Dashboard: React.FC = () => {
             <p className="text-gray-600">Quản lý phương tiện của bạn</p>
           </div>
           
-          {/* Primary CTA - Register Button */}
-          <button
-            onClick={() => setShowRegisterForm(true)}
-            className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg hover:shadow-xl transition-all font-medium"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Đăng ký xe mới
-          </button>
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => navigate('/transfer-vehicle')}
+              className="flex items-center px-5 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 shadow-lg hover:shadow-xl transition-all font-medium"
+            >
+              <ArrowsRightLeftIcon className="w-5 h-5 mr-2" />
+              Chuyển nhượng xe
+            </button>
+            <button
+              onClick={() => navigate('/vehicle-history')}
+              className="flex items-center px-5 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 shadow-lg hover:shadow-xl transition-all font-medium"
+            >
+              <ClockIcon className="w-5 h-5 mr-2" />
+              Xem lịch sử
+            </button>
+            <button
+              onClick={() => setShowRegisterForm(true)}
+              className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg hover:shadow-xl transition-all font-medium"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Đăng ký xe mới
+            </button>
+          </div>
         </div>
 
         {/* Tab Navigation - Simplified */}

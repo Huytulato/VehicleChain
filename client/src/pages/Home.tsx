@@ -9,10 +9,15 @@ const Home: React.FC = () => {
 
   // Redirect if already connected
   useEffect(() => {
-    if (account) {
-      navigate('/dashboard');
+    if (account && user) {
+      // Redirect authority/admin to authority dashboard
+      if (user.role === 'AUTHORITY') {
+        navigate('/authority');
+      } else {
+        navigate('/dashboard');
+      }
     }
-  }, [account, navigate]);
+  }, [account, user, navigate]);
 
   const handleConnect = async () => {
     await connectWallet();

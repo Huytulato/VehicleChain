@@ -78,21 +78,26 @@ const Navbar: React.FC = () => {
             {account ? (
               <div className="flex items-center space-x-3">
                 {/* User Info */}
-                {user?.isKYCVerified && (
+                {user?.fullName && (
                   <div className="hidden lg:block text-right">
-                    <p className="text-sm font-medium text-gray-900">{user.fullName}</p>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                      <CheckCircleIcon className="w-3 h-3 mr-1" />
-                      ĐÃ XÁC THỰC
-                    </span>
+                    <p className="text-sm font-medium text-gray-900">
+                      {/* Nếu fullName bị mã hóa (dài > 50 ký tự), hiển thị "Người dùng" */}
+                      {user.fullName.length > 50 ? 'Người dùng' : user.fullName}
+                    </p>
+                    {user.isKYCVerified && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                        <CheckCircleIcon className="w-3 h-3 mr-1" />
+                        ĐÃ XÁC THỰC
+                      </span>
+                    )}
                   </div>
                 )}
 
                 {/* Account Address */}
-                <div className="hidden sm:flex items-center space-x-2 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="text-sm font-mono text-gray-700">
-                    {account.slice(0, 6)}...{account.slice(-4)}
+                <div className="hidden sm:flex items-center space-x-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-xs font-mono text-gray-600">
+                    {account.slice(0, 4)}...{account.slice(-4)}
                   </span>
                 </div>
 
@@ -202,20 +207,26 @@ const Navbar: React.FC = () => {
               
               {/* Mobile User Info */}
               <div className="px-4 py-3 bg-gray-50 rounded-lg mt-4">
-                <div className="flex items-center space-x-2 mb-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="text-sm font-mono text-gray-700">
-                    {account.slice(0, 6)}...{account.slice(-4)}
-                  </span>
-                </div>
-                {user?.isKYCVerified && (
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{user.fullName}</p>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 mt-1">
-                      ✓ ĐÃ XÁC THỰC
-                    </span>
+                {user?.fullName && (
+                  <div className="mb-2">
+                    <p className="text-sm font-medium text-gray-900">
+                      {/* Nếu fullName bị mã hóa (dài > 50 ký tự), hiển thị "Người dùng" */}
+                      {user.fullName.length > 50 ? 'Người dùng' : user.fullName}
+                    </p>
+                    {user.isKYCVerified && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 mt-1">
+                        <CheckCircleIcon className="w-3 h-3 mr-1" />
+                        ĐÃ XÁC THỰC
+                      </span>
+                    )}
                   </div>
                 )}
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="text-xs font-mono text-gray-600">
+                    {account.slice(0, 4)}...{account.slice(-4)}
+                  </span>
+                </div>
               </div>
 
               {/* Mobile Disconnect Button */}

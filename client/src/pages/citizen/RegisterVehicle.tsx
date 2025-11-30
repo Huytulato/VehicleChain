@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import Spinner from '../../components/Spinner';
-import { submitVehicle } from '../../services/blockchain';
+import { submitVehicle, registerKYC, checkKYCStatus, updateKYC } from '../../services/blockchain';
 import { uploadMultipleFiles, uploadFileToIPFS } from '../../services/ipfs';
 import { XMarkIcon, PhotoIcon, DocumentIcon } from '@heroicons/react/24/outline';
+import { useWallet } from '../../context/WalletContext';
 
 interface RegisterVehicleProps {
   editVin?: string;
@@ -11,9 +12,11 @@ interface RegisterVehicleProps {
 const LOCAL_STORAGE_KEY_PREFIX = 'vehicleForm_';
 
 const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
+  const { account, user } = useWallet();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [isKYCRegistered, setIsKYCRegistered] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState({
@@ -22,6 +25,11 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
     licensePlate: '',
     brand: '',
     color: '',
+    // KYC Data
+    fullName: '',
+    cccd: '',
+    phoneNumber: '',
+    homeAddress: '',
   });
 
   // Photo upload state with preview URLs
@@ -60,6 +68,28 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
       setErrors({ ...errors, [name]: '' });
     }
   };
+
+  // Check KYC status on mount
+  useEffect(() => {
+    const checkKYC = async () => {
+      if (account) {
+        const status = await checkKYCStatus(account);
+        setIsKYCRegistered(status);
+        
+        // Pre-fill KYC data if already registered
+        if (user?.isKYCVerified) {
+          setFormData(prev => ({
+            ...prev,
+            fullName: user.fullName || '',
+            cccd: user.idNumber || '',
+            phoneNumber: user.phone || '',
+            homeAddress: user.residenceAddress || ''
+          }));
+        }
+      }
+    };
+    checkKYC();
+  }, [account, user]);
 
   // Load stored form data when editing a rejected application
   useEffect(() => {
@@ -115,6 +145,12 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
     if (!formData.color.trim()) {
       newErrors.color = 'Màu sơn là bắt buộc';
     }
+
+    // Validate KYC if not registered (simplified for now, assuming always validate)
+    if (!formData.fullName.trim()) newErrors.fullName = 'Họ tên là bắt buộc';
+    if (!formData.cccd.trim()) newErrors.cccd = 'CCCD là bắt buộc';
+    if (!formData.phoneNumber.trim()) newErrors.phoneNumber = 'SĐT là bắt buộc';
+    if (!formData.homeAddress.trim()) newErrors.homeAddress = 'Địa chỉ là bắt buộc';
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -218,6 +254,34 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
 
       const photoHashes = await uploadMultipleFiles(photoFiles);
 
+      // Step 1.5: Register or Update KYC if needed
+      if (!isKYCRegistered) {
+        console.log('Đăng ký KYC lần đầu...');
+        await registerKYC({
+          fullName: formData.fullName,  // KHÔNG mã hóa fullName
+          idNumber: formData.cccd,
+          phone: formData.phoneNumber,
+          residenceAddress: formData.homeAddress
+        });
+      } else if (user?.isKYCVerified) {
+        // Nếu đã đăng ký và có thay đổi thông tin, update
+        const hasChanged = 
+          user.fullName !== formData.fullName ||
+          user.idNumber !== formData.cccd ||
+          user.phone !== formData.phoneNumber ||
+          user.residenceAddress !== formData.homeAddress;
+        
+        if (hasChanged) {
+          console.log('Cập nhật KYC...');
+          await updateKYC({
+            fullName: formData.fullName,  // KHÔNG mã hóa fullName
+            idNumber: formData.cccd,
+            phone: formData.phoneNumber,
+            residenceAddress: formData.homeAddress
+          });
+        }
+      }
+
       // Step 2: Upload documents to IPFS
       const documentData = [];
       if (documents.length > 0) {
@@ -258,6 +322,10 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
         licensePlate: '',
         brand: '',
         color: '',
+        fullName: '',
+        cccd: '',
+        phoneNumber: '',
+        homeAddress: '',
       });
       setPhotos({
         front: null,
@@ -395,6 +463,69 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
                   placeholder="Đỏ, Xanh, Trắng..."
                 />
                 {errors.color && <p className="text-red-500 text-sm mt-1">{errors.color}</p>}
+              </div>
+            </div>
+
+            {/* KYC Section */}
+            <div className="border-t pt-6 mt-6">
+              <h3 className="text-lg font-bold mb-4">Thông tin chủ xe (KYC)</h3>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="label">
+                    Họ và tên <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="fullName"
+                    value={formData.fullName}
+                    onChange={handleInputChange}
+                    className={`input ${errors.fullName ? 'border-red-500' : ''}`}
+                    placeholder="Nguyễn Văn A"
+                  />
+                  {errors.fullName && <p className="text-red-500 text-sm mt-1">{errors.fullName}</p>}
+                </div>
+                <div>
+                  <label className="label">
+                    Số CCCD <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="cccd"
+                    value={formData.cccd}
+                    onChange={handleInputChange}
+                    className={`input ${errors.cccd ? 'border-red-500' : ''}`}
+                    placeholder="0010..."
+                  />
+                  {errors.cccd && <p className="text-red-500 text-sm mt-1">{errors.cccd}</p>}
+                </div>
+                <div>
+                  <label className="label">
+                    Số điện thoại <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="phoneNumber"
+                    value={formData.phoneNumber}
+                    onChange={handleInputChange}
+                    className={`input ${errors.phoneNumber ? 'border-red-500' : ''}`}
+                    placeholder="09..."
+                  />
+                  {errors.phoneNumber && <p className="text-red-500 text-sm mt-1">{errors.phoneNumber}</p>}
+                </div>
+                <div>
+                  <label className="label">
+                    Địa chỉ thường trú <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="homeAddress"
+                    value={formData.homeAddress}
+                    onChange={handleInputChange}
+                    className={`input ${errors.homeAddress ? 'border-red-500' : ''}`}
+                    placeholder="Số 1, Đại Cồ Việt..."
+                  />
+                  {errors.homeAddress && <p className="text-red-500 text-sm mt-1">{errors.homeAddress}</p>}
+                </div>
               </div>
             </div>
           </div>

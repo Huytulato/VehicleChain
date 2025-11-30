@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useWallet } from '../../context/WalletContext';
 import VehicleCard from '../../components/VehicleCard';
 import { CardSkeleton } from '../../components/Skeleton';
-import { getMyVehicles, requestTransfer } from '../../services/blockchain';
+import { getMyVehicles, requestTransfer, updateKYC, registerKYC } from '../../services/blockchain';
 import { getIPFSUrl } from '../../services/ipfs';
+import { encryptData } from '../../utils/encryption';
 import type { Vehicle } from '../../types';
-import { TruckIcon, ClockIcon, CheckCircleIcon, XCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { TruckIcon, ClockIcon, CheckCircleIcon, XCircleIcon, XMarkIcon, UserIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import { ethers } from 'ethers';
 
 interface MyGarageProps {
@@ -13,7 +14,7 @@ interface MyGarageProps {
 }
 
 const MyGarage: React.FC<MyGarageProps> = ({ onRegisterClick }) => {
-  const { account } = useWallet();
+  const { account, user, updateUser } = useWallet();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
@@ -21,6 +22,27 @@ const MyGarage: React.FC<MyGarageProps> = ({ onRegisterClick }) => {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferAddress, setTransferAddress] = useState('');
   const [isTransferring, setIsTransferring] = useState(false);
+
+  // Update Profile State
+  const [showUpdateProfileModal, setShowUpdateProfileModal] = useState(false);
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    fullName: '',
+    cccd: '',
+    phoneNumber: '',
+    homeAddress: ''
+  });
+
+  useEffect(() => {
+    if (user && showUpdateProfileModal) {
+      setProfileForm({
+        fullName: user.fullName || '',
+        cccd: user.idNumber || '',
+        phoneNumber: user.phone || '',
+        homeAddress: user.residenceAddress || ''
+      });
+    }
+  }, [user, showUpdateProfileModal]);
 
   const loadVehicles = async () => {
     if (!account) return;
@@ -66,6 +88,49 @@ const MyGarage: React.FC<MyGarageProps> = ({ onRegisterClick }) => {
     }
   };
 
+  const handleUpdateProfile = async () => {
+    if (!profileForm.fullName || !profileForm.cccd || !profileForm.phoneNumber || !profileForm.homeAddress) {
+      alert('Vui lòng điền đầy đủ thông tin');
+      return;
+    }
+
+    setIsUpdatingProfile(true);
+    try {
+      // Kiểm tra xem user đã đăng ký KYC chưa
+      if (!user?.isKYCVerified) {
+        // Chưa đăng ký → Gọi registerKYC
+        console.log('Đăng ký KYC lần đầu...');
+        await registerKYC({
+          fullName: profileForm.fullName,
+          idNumber: profileForm.cccd,
+          phone: profileForm.phoneNumber,
+          residenceAddress: profileForm.homeAddress
+        });
+        alert('✅ Đăng ký định danh thành công! Vui lòng tải lại trang.');
+      } else {
+        // Đã đăng ký → Gọi updateKYC
+        console.log('Cập nhật KYC...');
+        await updateKYC({
+          fullName: profileForm.fullName,        // KHÔNG MÃ HÓA - Để thân thiện
+          idNumber: profileForm.cccd,            // SẼ MÃ HÓA trong updateKYC
+          phone: profileForm.phoneNumber,        // SẼ MÃ HÓA trong updateKYC
+          residenceAddress: profileForm.homeAddress  // SẼ MÃ HÓA trong updateKYC
+        });
+        alert('✅ Cập nhật thông tin thành công! Vui lòng tải lại trang để thấy thay đổi.');
+      }
+
+      setShowUpdateProfileModal(false);
+
+      // Reload trang để load dữ liệu mới từ blockchain
+      window.location.reload();
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+      alert(`❌ Lỗi: ${error.message || 'Vui lòng thử lại'}`);
+    } finally {
+      setIsUpdatingProfile(false);
+    }
+  };
+
   // Statistics
   const totalVehicles = vehicles.length;
   const pendingVehicles = vehicles.filter(v => v.status === 'PENDING').length;
@@ -74,6 +139,65 @@ const MyGarage: React.FC<MyGarageProps> = ({ onRegisterClick }) => {
 
   return (
     <div className="space-y-6">
+      {/* Alert if user not verified */}
+      {!user?.isKYCVerified && (
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3 flex-1">
+              <h3 className="text-sm font-medium text-red-800">Chưa xác thực định danh</h3>
+              <p className="mt-1 text-sm text-red-700">
+                Bạn cần hoàn tất định danh (KYC) để sử dụng đầy đủ chức năng như đăng ký xe, chuyển nhượng,...
+              </p>
+              <button
+                onClick={() => setShowUpdateProfileModal(true)}
+                className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm"
+              >
+                Đăng ký định danh ngay
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Alert if fullName is encrypted */}
+      {user?.fullName && user.fullName.length > 50 && (
+        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-lg">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="w-6 h-6 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-amber-800">Thông tin cần cập nhật</h3>
+              <p className="mt-1 text-sm text-amber-700">
+                Tên của bạn đang hiển thị dạng mã hóa. Vui lòng nhấn "Cập nhật thông tin" để hiển thị tên rõ ràng hơn.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Header with Update Profile Button */}
+      <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm">
+        <h2 className="text-2xl font-bold text-gray-800 flex items-center">
+          <TruckIcon className="w-8 h-8 mr-2 text-blue-600" />
+          Gara của tôi
+        </h2>
+        <button
+          onClick={() => setShowUpdateProfileModal(true)}
+          className="flex items-center px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors font-medium border border-blue-200"
+        >
+          <PencilSquareIcon className="w-5 h-5 mr-2" />
+          Cập nhật thông tin
+        </button>
+      </div>
+
       {/* Compact Statistics Cards */}
       <div className="grid md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-md p-5 border-l-4 border-blue-500">
@@ -451,6 +575,92 @@ const MyGarage: React.FC<MyGarageProps> = ({ onRegisterClick }) => {
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isTransferring ? 'Đang gửi yêu cầu...' : 'Gửi yêu cầu chuyển nhượng'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Update Profile Modal */}
+      {showUpdateProfileModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-600 to-blue-700 rounded-t-xl">
+              <h2 className="text-xl font-bold text-white flex items-center">
+                <UserIcon className="w-6 h-6 mr-2" />
+                {user?.isKYCVerified ? 'Cập nhật thông tin cá nhân' : 'Đăng ký định danh (KYC)'}
+              </h2>
+              <button
+                onClick={() => setShowUpdateProfileModal(false)}
+                className="text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-1"
+              >
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {!user?.isKYCVerified && (
+                <div className="bg-blue-50 border-l-4 border-blue-500 p-3 rounded">
+                  <p className="text-sm text-blue-800">
+                    <strong>Lưu ý:</strong> Họ tên sẽ lưu dạng văn bản thường. CCCD, SĐT, địa chỉ sẽ được mã hóa RSA.
+                  </p>
+                </div>
+              )}
+              <div>
+                <label className="label">Họ và tên</label>
+                <input
+                  type="text"
+                  value={profileForm.fullName}
+                  onChange={(e) => setProfileForm({ ...profileForm, fullName: e.target.value })}
+                  className="input"
+                  placeholder="Nguyễn Văn A"
+                />
+              </div>
+              <div>
+                <label className="label">Số CCCD</label>
+                <input
+                  type="text"
+                  value={profileForm.cccd}
+                  onChange={(e) => setProfileForm({ ...profileForm, cccd: e.target.value })}
+                  className="input"
+                  placeholder="001..."
+                />
+              </div>
+              <div>
+                <label className="label">Số điện thoại</label>
+                <input
+                  type="text"
+                  value={profileForm.phoneNumber}
+                  onChange={(e) => setProfileForm({ ...profileForm, phoneNumber: e.target.value })}
+                  className="input"
+                  placeholder="09..."
+                />
+              </div>
+              <div>
+                <label className="label">Địa chỉ thường trú</label>
+                <input
+                  type="text"
+                  value={profileForm.homeAddress}
+                  onChange={(e) => setProfileForm({ ...profileForm, homeAddress: e.target.value })}
+                  className="input"
+                  placeholder="Số 1, Đại Cồ Việt..."
+                />
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3 rounded-b-xl">
+              <button
+                onClick={() => setShowUpdateProfileModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 font-medium"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleUpdateProfile}
+                disabled={isUpdatingProfile}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-60"
+              >
+                {isUpdatingProfile ? 'Đang cập nhật...' : 'Lưu thay đổi'}
               </button>
             </div>
           </div>

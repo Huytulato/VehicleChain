@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 contract VehicleRegistry {
     
-    // --- 1. CẤU TRÚC DỮ LIỆU (DATA STRUCTURES) ---
+    // --- 1. CẤU TRÚC DỮ LIỆU ---
 
     enum Status { 
         KHONG_TON_TAI,      // 0
@@ -25,7 +25,24 @@ contract VehicleRegistry {
         uint256 timestamp;      // Thời gian cập nhật cuối
     }
 
-    // [MỚI] Thông tin công dân để hiển thị tên thật
+    // Lịch sử giao dịch của xe
+    struct TransferHistory {
+        address from;           // Người bán
+        address to;             // Người mua
+        uint256 timestamp;      // Thời gian chuyển nhượng
+        string contractIpfsHash; // Hash hợp đồng mua bán trên IPFS
+    }
+
+    // Yêu cầu chuyển nhượng (lưu riêng để theo dõi)
+    struct TransferRequest {
+        string vin;
+        address from;
+        address to;
+        string contractIpfsHash; // Hash hợp đồng mua bán
+        uint256 timestamp;
+        bool isProcessed;        // Đã xử lý chưa (duyệt/từ chối)
+    }
+
     struct Citizen {
         string fullName;
         string cccd;
@@ -34,24 +51,28 @@ contract VehicleRegistry {
         bool isRegistered;
     }
 
-    // --- 2. LƯU TRỮ (STORAGE) ---
+    // --- 2. LƯU TRỮ ---
 
     address public authority; // Địa chỉ Admin (Cơ quan)
 
     mapping(string => Vehicle) public vehicles;             // Tra cứu xe theo VIN
     mapping(address => string[]) public ownerVehicles;      // Tra cứu danh sách xe của ví
-    mapping(address => Citizen) public citizens;            // [MỚI] Tra cứu thông tin công dân
+    mapping(address => Citizen) public citizens;            // Tra cứu thông tin công dân
+    
+    // Lịch sử chuyển nhượng của từng xe
+    mapping(string => TransferHistory[]) public vehicleHistory;
+    
+    // Yêu cầu chuyển nhượng đang chờ (theo VIN)
+    mapping(string => TransferRequest) public pendingTransfers;
 
-    string[] public allVINs; // Danh sách toàn bộ VIN (Cho Admin)
+    string[] public allVINs; // Danh sách toàn bộ VIN
 
-    // --- 3. SỰ KIỆN (EVENTS) - Thêm timestamp để vẽ Timeline ---
+    // --- 3. SỰ KIỆN ---
 
     event YeuCauMoi(string vin, address indexed owner, uint256 timestamp);
     event DaDuyetCapMoi(string vin, address indexed owner, uint256 timestamp);
     event YeuCauSangTen(string vin, address indexed from, address indexed to, uint256 timestamp);
     event DaDuyetSangTen(string vin, address indexed from, address indexed to, uint256 timestamp);
-    
-    // [MỚI] Sự kiện từ chối kèm lý do
     event HoSoBiTuChoi(string vin, address indexed owner, string lyDo, uint256 timestamp);
     event CongDanMoi(address indexed wallet, string fullName);
 
@@ -66,10 +87,26 @@ contract VehicleRegistry {
         authority = msg.sender; // Người deploy là Admin
     }
 
-    // --- 5. CHỨC NĂNG: ĐỊNH DANH CÔNG DÂN (KYC) ---
+    // --- 5. CHỨC NĂNG: ĐỊNH DANH (KYC) ---
 
+    // [ĐÃ SỬA LẠI ĐOẠN BỊ THIẾU Ở ĐÂY]
     function registerCitizen(string memory _name, string memory _cccd, string memory _phone, string memory _addr) public {
         require(!citizens[msg.sender].isRegistered, "Vi nay da duoc dinh danh roi");
+        
+        citizens[msg.sender] = Citizen({
+            fullName: _name,
+            cccd: _cccd,
+            phoneNumber: _phone,
+            homeAddress: _addr,
+            isRegistered: true
+        });
+
+        emit CongDanMoi(msg.sender, _name);
+    }
+
+    // CẬP NHẬT thông tin công dân (cho phép sửa dữ liệu cũ)
+    function updateCitizen(string memory _name, string memory _cccd, string memory _phone, string memory _addr) public {
+        require(citizens[msg.sender].isRegistered, "Chua dang ky dinh danh");
         
         citizens[msg.sender] = Citizen({
             fullName: _name,
@@ -107,14 +144,25 @@ contract VehicleRegistry {
     }
 
     // NGƯỜI DÂN: Yêu cầu bán xe
-    function requestTransfer(string memory _vin, address _buyer) public {
+    function requestTransfer(string memory _vin, address _buyer, string memory _contractIpfsHash) public {
         require(vehicles[_vin].owner == msg.sender, "Khong phai xe chinh chu");
         require(vehicles[_vin].status == Status.DA_CAP, "Xe khong o trang thai hop le de ban");
         require(_buyer != address(0), "Dia chi nguoi mua khong hop le");
         require(_buyer != msg.sender, "Khong the tu ban cho chinh minh");
+        require(bytes(_contractIpfsHash).length > 0, "Can upload hop dong mua ban");
 
         vehicles[_vin].status = Status.CHO_DUYET_SANG_TEN;
         vehicles[_vin].pendingBuyer = _buyer;
+
+        // Lưu yêu cầu chuyển nhượng
+        pendingTransfers[_vin] = TransferRequest({
+            vin: _vin,
+            from: msg.sender,
+            to: _buyer,
+            contractIpfsHash: _contractIpfsHash,
+            timestamp: block.timestamp,
+            isProcessed: false
+        });
 
         emit YeuCauSangTen(_vin, msg.sender, _buyer, block.timestamp);
     }
@@ -134,9 +182,18 @@ contract VehicleRegistry {
     // Duyệt sang tên
     function approveTransfer(string memory _vin) public onlyAuthority {
         require(vehicles[_vin].status == Status.CHO_DUYET_SANG_TEN, "Khong co yeu cau sang ten");
+        require(pendingTransfers[_vin].isProcessed == false, "Yeu cau da xu ly");
 
         address oldOwner = vehicles[_vin].owner;
         address newOwner = vehicles[_vin].pendingBuyer;
+
+        // Lưu lịch sử chuyển nhượng
+        vehicleHistory[_vin].push(TransferHistory({
+            from: oldOwner,
+            to: newOwner,
+            timestamp: block.timestamp,
+            contractIpfsHash: pendingTransfers[_vin].contractIpfsHash
+        }));
 
         // Xóa xe khỏi danh sách chủ cũ
         _removeVinFromOwner(oldOwner, _vin);
@@ -150,25 +207,32 @@ contract VehicleRegistry {
         vehicles[_vin].status = Status.DA_CAP;
         vehicles[_vin].timestamp = block.timestamp;
 
+        // Đánh dấu yêu cầu đã xử lý
+        pendingTransfers[_vin].isProcessed = true;
+
         emit DaDuyetSangTen(_vin, oldOwner, newOwner, block.timestamp);
     }
 
-    // Từ chối hồ sơ (Có lưu lý do)
+    // Từ chối hồ sơ
     function rejectVehicle(string memory _vin, string memory _reason) public onlyAuthority {
-        // Chỉ từ chối được xe đang chờ duyệt
         require(vehicles[_vin].status == Status.CHO_DUYET_CAP_MOI || vehicles[_vin].status == Status.CHO_DUYET_SANG_TEN, "Trang thai khong the tu choi");
 
         vehicles[_vin].status = Status.BI_TU_CHOI;
         vehicles[_vin].rejectReason = _reason;
-        vehicles[_vin].pendingBuyer = address(0); // Reset người mua nếu đang bán
+        vehicles[_vin].pendingBuyer = address(0);
         vehicles[_vin].timestamp = block.timestamp;
+
+        // Nếu là từ chối chuyển nhượng, đánh dấu đã xử lý
+        if (pendingTransfers[_vin].timestamp > 0) {
+            pendingTransfers[_vin].isProcessed = true;
+        }
 
         emit HoSoBiTuChoi(_vin, vehicles[_vin].owner, _reason, block.timestamp);
     }
 
     // --- 8. HÀM HỖ TRỢ (INTERNAL & VIEW) ---
 
-    // Hàm nội bộ: Xóa phần tử khỏi mảng (Swap & Pop)
+    // Xóa phần tử khỏi mảng
     function _removeVinFromOwner(address _owner, string memory _vin) internal {
         string[] storage myCars = ownerVehicles[_owner];
         for (uint i = 0; i < myCars.length; i++) {
@@ -180,7 +244,7 @@ contract VehicleRegistry {
         }
     }
 
-    // Lấy danh sách xe của User (Trả về mảng Object)
+    // Lấy danh sách xe của User
     function getMyVehicles(address _user) public view returns (Vehicle[] memory) {
         string[] memory vins = ownerVehicles[_user];
         Vehicle[] memory myCars = new Vehicle[](vins.length);
@@ -191,7 +255,7 @@ contract VehicleRegistry {
         return myCars;
     }
 
-    // Lấy tất cả xe (Cho Admin Dashboard)
+    // Lấy tất cả xe
     function getAllVehicles() public view returns (Vehicle[] memory) {
         Vehicle[] memory allCars = new Vehicle[](allVINs.length);
         for(uint i = 0; i < allVINs.length; i++) {
@@ -203,5 +267,20 @@ contract VehicleRegistry {
     // Lấy thông tin công dân
     function getCitizen(address _wallet) public view returns (Citizen memory) {
         return citizens[_wallet];
+    }
+
+    // Lấy lịch sử chuyển nhượng của xe
+    function getVehicleHistory(string memory _vin) public view returns (TransferHistory[] memory) {
+        return vehicleHistory[_vin];
+    }
+
+    // Lấy yêu cầu chuyển nhượng đang chờ
+    function getPendingTransfer(string memory _vin) public view returns (TransferRequest memory) {
+        return pendingTransfers[_vin];
+    }
+
+    // Kiểm tra xe có tồn tại không
+    function vehicleExists(string memory _vin) public view returns (bool) {
+        return vehicles[_vin].status != Status.KHONG_TON_TAI;
     }
 }
