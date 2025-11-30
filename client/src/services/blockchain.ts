@@ -1,7 +1,7 @@
 // Blockchain Service - Smart Contract Interactions
 import { ethers } from 'ethers';
 import contractABI from '../utils/contractABI.json';
-import type { Vehicle, VehicleHistory, TransferRequest, VehicleStatusType, VehicleActivity } from '../types';
+import type { Vehicle, VehicleStatusType, VehicleActivity } from '../types';
 import { decryptData } from '../utils/encryption';
 import type { User, UserRoleType } from '../types';
 
@@ -654,6 +654,40 @@ export const getVehicleHistory = async (vin: string): Promise<any[]> => {
   } catch (error) {
     console.error('Error getting vehicle history:', error);
     return [];
+  }
+};
+
+/**
+ * Lấy yêu cầu chuyển nhượng đang chờ của một xe (bao gồm hash hợp đồng)
+ */
+export const getPendingTransfer = async (
+  vin: string
+): Promise<{
+  vin: string;
+  from: string;
+  to: string;
+  contractIpfsHash: string;
+  timestamp: number;
+  isProcessed: boolean;
+} | null> => {
+  try {
+    const contract = await getContract();
+    const data = await contract.getPendingTransfer(vin);
+
+    // Nếu chưa có yêu cầu hoặc vin rỗng -> null
+    if (!data.vin) return null;
+
+    return {
+      vin: data.vin,
+      from: data.from,
+      to: data.to,
+      contractIpfsHash: data.contractIpfsHash,
+      timestamp: Number(data.timestamp),
+      isProcessed: data.isProcessed,
+    };
+  } catch (error) {
+    console.error('Error getting pending transfer:', error);
+    return null;
   }
 };
 

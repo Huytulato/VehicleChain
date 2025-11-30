@@ -211,15 +211,22 @@ const VehicleSearch: React.FC = () => {
               <div className="grid md:grid-cols-2 gap-6">
                 {/* Ảnh xe */}
                 <div className="bg-gray-100 rounded-lg aspect-video flex items-center justify-center overflow-hidden">
-                  {vehicle.photoIpfsHash ? (
-                    <img 
-                      src={getIPFSUrl(vehicle.photoIpfsHash)}
-                      alt={vehicle.brand}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <DocumentTextIcon className="w-24 h-24 text-gray-400" />
-                  )}
+                  {(() => {
+                    try {
+                      const photoHashes = JSON.parse(vehicle.photoIpfsHash || '{}');
+                      return photoHashes.back ? (
+                        <img 
+                          src={getIPFSUrl(photoHashes.back)}
+                          alt={`${vehicle.brand} - Mặt sau`}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <DocumentTextIcon className="w-24 h-24 text-gray-400" />
+                      );
+                    } catch {
+                      return <DocumentTextIcon className="w-24 h-24 text-gray-400" />;
+                    }
+                  })()}
                 </div>
 
                 {/* Chi tiết */}

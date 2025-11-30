@@ -2,6 +2,7 @@ import React from 'react';
 import type { Vehicle } from '../types';
 import StatusBadge from './StatusBadge';
 import { VehicleStatus } from '../types';
+import { getIPFSUrl } from '../services/ipfs';
 
 interface VehicleCardProps {
   vehicle: Vehicle;
@@ -19,6 +20,18 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
   const canTransfer = vehicle.status === VehicleStatus.ACTIVE;
   const isRejected = vehicle.status === VehicleStatus.REJECTED;
 
+  // Extract front photo from IPFS hash
+  const getFrontPhoto = () => {
+    try {
+      const photoHashes = JSON.parse(vehicle.photoIpfsHash || '{}');
+      return photoHashes.front || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const frontPhotoHash = getFrontPhoto();
+
   return (
     <div className="card hover:shadow-lg transition-shadow duration-200 animate-fade-in">
       {/* Status badge in top-right corner */}
@@ -26,21 +39,29 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
         <StatusBadge status={vehicle.status} />
       </div>
 
-      {/* Vehicle Image Placeholder */}
-      <div className="w-full h-40 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg mb-4 flex items-center justify-center">
-        <svg
-          className="w-16 h-16 text-blue-400"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+      {/* Vehicle Image */}
+      <div className="w-full h-40 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg mb-4 flex items-center justify-center overflow-hidden">
+        {frontPhotoHash ? (
+          <img
+            src={getIPFSUrl(frontPhotoHash)}
+            alt={vehicle.brand}
+            className="w-full h-full object-cover"
           />
-        </svg>
+        ) : (
+          <svg
+            className="w-16 h-16 text-blue-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            />
+          </svg>
+        )}
       </div>
 
       {/* Vehicle Info */}

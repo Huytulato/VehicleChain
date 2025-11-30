@@ -19,6 +19,8 @@ const AuthorityDashboard: React.FC = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pendingTransfer, setPendingTransfer] = useState<any>(null);
+  const [vehicleOwners, setVehicleOwners] = useState<Map<string, any>>(new Map());
 
   useEffect(() => {
     if (!account) {
@@ -36,6 +38,23 @@ const AuthorityDashboard: React.FC = () => {
     try {
       const allVehicles = await getAllVehiclesForAuthority();
       setVehicles(allVehicles);
+      
+      // Tải thông tin chủ xe cho tất cả xe
+      const { getUserKYC } = await import('../../services/blockchain');
+      const ownerMap = new Map();
+      
+      for (const vehicle of allVehicles) {
+        try {
+          const info = await getUserKYC(vehicle.owner);
+          if (info) {
+            ownerMap.set(vehicle.owner, info);
+          }
+        } catch (e) {
+          // Skip nếu không lấy được KYC
+        }
+      }
+      
+      setVehicleOwners(ownerMap);
     } catch (error) {
       console.error('Error loading vehicles:', error);
     } finally {
@@ -54,12 +73,25 @@ const AuthorityDashboard: React.FC = () => {
     setShowDetailModal(true);
     // Fetch owner info
     try {
-      const { getUserKYC } = await import('../../services/blockchain');
+      const { getUserKYC, getPendingTransfer } = await import('../../services/blockchain');
       const info = await getUserKYC(vehicle.owner);
       setOwnerInfo(info);
+      // Nếu là hồ sơ chuyển nhượng thì lấy thêm hợp đồng
+      if (vehicle.status === 'TRANSFERRING') {
+        try {
+          const transfer = await getPendingTransfer(vehicle.vin);
+          setPendingTransfer(transfer);
+        } catch (e) {
+          console.error('Error fetching pending transfer:', e);
+          setPendingTransfer(null);
+        }
+      } else {
+        setPendingTransfer(null);
+      }
     } catch (e) {
       console.error('Error fetching owner info:', e);
       setOwnerInfo(null);
+      setPendingTransfer(null);
     }
   };
 
@@ -132,107 +164,106 @@ const AuthorityDashboard: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50">
-      <div className="container mx-auto px-4 py-8">
-        {/* Page Header */}
-        <div className="mb-8 flex items-center justify-between">
-          <div className="flex items-center">
-            <BuildingLibraryIcon className="w-10 h-10 text-indigo-600 mr-4" />
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-1">
-                Authority Dashboard
-              </h1>
-              <p className="text-gray-600">Quản lý và phê duyệt hồ sơ đăng ký phương tiện</p>
-            </div>
-          </div>
-          
-          {/* Search Vehicle Button */}
-          <button
-            onClick={() => navigate('/authority/search')}
-            className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-lg hover:shadow-xl transition-all font-medium"
-          >
-            <DocumentMagnifyingGlassIcon className="w-5 h-5 mr-2" />
-            Tra cứu phương tiện
-          </button>
-        </div>
-
-        {/* Stats Overview */}
-        <div className="grid md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-lg shadow-md p-5 border-l-4 border-amber-500 hover:shadow-lg transition-shadow cursor-pointer"
-            onClick={() => setActiveTab('pending')}>
+    <div className="min-h-screen bg-gray-100">
+      <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white shadow-lg">
+        <div className="container mx-auto px-6 py-8">
+          {/* Page Header */}
+          <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <ClockIcon className="w-10 h-10 text-amber-600" />
+              <div className="bg-yellow-500 p-3 rounded-lg mr-4 shadow-md">
+                <BuildingLibraryIcon className="w-8 h-8 text-slate-900" />
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Chờ duyệt</p>
-                <p className="text-2xl font-bold text-amber-600">{vehicles.filter(v => v.status === 'PENDING' || v.status === 'TRANSFERRING').length}</p>
+              <div>
+                <h1 className="text-3xl font-bold mb-1 tracking-tight">
+                  Hệ thống quản lý đăng ký phương tiện
+                </h1>
+                <p className="text-slate-300 text-sm">Cơ quan Cảnh sát Giao thông - Bộ Công an</p>
               </div>
             </div>
+            
+            {/* Search Vehicle Button */}
+            <button
+              onClick={() => navigate('/authority/search')}
+              className="flex items-center px-6 py-3 bg-yellow-500 text-slate-900 rounded-lg hover:bg-yellow-400 shadow-lg hover:shadow-xl transition-all font-semibold"
+            >
+              <DocumentMagnifyingGlassIcon className="w-5 h-5 mr-2" />
+              Tra cứu phương tiện
+            </button>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-5 border-l-4 border-green-500 hover:shadow-lg transition-shadow cursor-pointer"
-            onClick={() => setActiveTab('approved')}>
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <CheckCircleIcon className="w-10 h-10 text-green-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Đã duyệt</p>
-                <p className="text-2xl font-bold text-green-600">{vehicles.filter(v => v.status === 'ACTIVE').length}</p>
+          {/* Stats Overview */}
+          <div className="grid md:grid-cols-4 gap-4 mt-8">
+            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-5 border border-white/20 hover:bg-white/15 transition-all cursor-pointer"
+              onClick={() => setActiveTab('pending')}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-300 mb-1">Chờ xử lý</p>
+                  <p className="text-3xl font-bold text-yellow-400">{vehicles.filter(v => v.status === 'PENDING' || v.status === 'TRANSFERRING').length}</p>
+                </div>
+                <ClockIcon className="w-12 h-12 text-yellow-400 opacity-80" />
               </div>
             </div>
-          </div>
 
-          <div className="bg-white rounded-lg shadow-md p-5 border-l-4 border-blue-500 hover:shadow-lg transition-shadow cursor-pointer"
-            onClick={() => setActiveTab('all')}>
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <DocumentTextIcon className="w-10 h-10 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Tổng hồ sơ</p>
-                <p className="text-2xl font-bold text-blue-600">{vehicles.length}</p>
+            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-5 border border-white/20 hover:bg-white/15 transition-all cursor-pointer"
+              onClick={() => setActiveTab('approved')}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-300 mb-1">Đã phê duyệt</p>
+                  <p className="text-3xl font-bold text-green-400">{vehicles.filter(v => v.status === 'ACTIVE').length}</p>
+                </div>
+                <CheckCircleIcon className="w-12 h-12 text-green-400 opacity-80" />
               </div>
             </div>
-          </div>
 
-          <div className="bg-white rounded-lg shadow-md p-5 border-l-4 border-red-500 hover:shadow-lg transition-shadow">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <XCircleIcon className="w-10 h-10 text-red-600" />
+            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-5 border border-white/20 hover:bg-white/15 transition-all cursor-pointer"
+              onClick={() => setActiveTab('all')}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-300 mb-1">Tổng hồ sơ</p>
+                  <p className="text-3xl font-bold text-blue-400">{vehicles.length}</p>
+                </div>
+                <DocumentTextIcon className="w-12 h-12 text-blue-400 opacity-80" />
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Từ chối</p>
-                <p className="text-2xl font-bold text-red-600">{vehicles.filter(v => v.status === 'REJECTED').length}</p>
+            </div>
+
+            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-5 border border-white/20 hover:bg-white/15 transition-all cursor-pointer"
+              onClick={() => setActiveTab('rejected')}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-300 mb-1">Đã từ chối</p>
+                  <p className="text-3xl font-bold text-red-400">{vehicles.filter(v => v.status === 'REJECTED').length}</p>
+                </div>
+                <XCircleIcon className="w-12 h-12 text-red-400 opacity-80" />
               </div>
             </div>
           </div>
         </div>
+      </div>
 
+      <div className="container mx-auto px-6 py-6">
         {/* Main Content Card */}
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          {/* Header with Search */}
-          <div className="border-b border-gray-200 p-6">
+        <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+          {/* Header with Tabs and Search */}
+          <div className="border-b border-gray-200 bg-slate-50 p-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
                 {tabs.map((tab) => {
                   const IconComponent = tab.icon;
                   return (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
-                      className={`flex items-center px-4 py-2 rounded-lg font-medium transition-all ${activeTab === tab.id
-                        ? 'bg-indigo-600 text-white shadow-md'
-                        : 'text-gray-600 hover:bg-gray-100'
+                      className={`flex items-center px-4 py-2.5 rounded-md font-medium transition-all text-sm ${activeTab === tab.id
+                        ? 'bg-slate-800 text-white shadow-md'
+                        : 'text-slate-700 hover:bg-slate-200 border border-slate-300'
                         }`}
                     >
-                      <IconComponent className="w-5 h-5 mr-2" />
+                      <IconComponent className="w-4 h-4 mr-2" />
                       {tab.label}
                       {tab.count !== undefined && (
                         <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === tab.id
-                          ? 'bg-white text-indigo-600'
-                          : 'bg-gray-200 text-gray-700'
+                          ? 'bg-yellow-400 text-slate-900'
+                          : 'bg-slate-300 text-slate-700'
                           }`}>
                           {tab.count}
                         </span>
@@ -249,9 +280,9 @@ const AuthorityDashboard: React.FC = () => {
                   placeholder="Tìm theo VIN, biển số..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-64"
+                  className="pl-10 pr-4 py-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-500 focus:border-transparent w-72 text-sm"
                 />
-                <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               </div>
             </div>
           </div>
@@ -273,17 +304,21 @@ const AuthorityDashboard: React.FC = () => {
                         <div key={vehicle.vin} className="border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow bg-white">
                           <div className="flex items-center gap-6">
                             <div className="flex-shrink-0">
-                              <div className={`w-20 h-20 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center border-2 border-gray-300 ${vehicle.applicationType === 'TRANSFER' ? 'bg-purple-100' : ''
+                              <div className={`w-20 h-20 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center border-2 border-gray-300 overflow-hidden ${vehicle.applicationType === 'TRANSFER' ? 'bg-purple-100' : ''
                                 }`}>
-                                {vehicle.photoIpfsHash ? (
-                                  <img src={`https://ipfs.io/ipfs/${vehicle.photoIpfsHash}`} alt={vehicle.brand} className="w-full h-full object-cover rounded-lg" />
-                                ) : (
-                                  vehicle.applicationType === 'TRANSFER' ? (
+                                {(() => {
+                                  try {
+                                    const photoHashes = JSON.parse(vehicle.photoIpfsHash || '{}');
+                                    if (photoHashes.front) {
+                                      return <img src={getIPFSUrl(photoHashes.front)} alt={vehicle.brand} className="w-full h-full object-cover" />;
+                                    }
+                                  } catch {}
+                                  return vehicle.applicationType === 'TRANSFER' ? (
                                     <ArrowPathRoundedSquareIcon className="w-10 h-10 text-purple-600" />
                                   ) : (
                                     <DocumentTextIcon className="w-10 h-10 text-gray-400" />
-                                  )
-                                )}
+                                  );
+                                })()}
                               </div>
                             </div>
 
@@ -321,6 +356,12 @@ const AuthorityDashboard: React.FC = () => {
                                 </div>
                                 <div className="flex items-center text-gray-600">
                                   <span className="font-medium">Chủ xe:</span>
+                                  <span className="ml-1 font-semibold text-blue-700">
+                                    {vehicleOwners.get(vehicle.owner)?.fullName || 'Chưa có KYC'}
+                                  </span>
+                                </div>
+                                <div className="col-span-3 flex items-center text-gray-600">
+                                  <span className="font-medium">Địa chỉ ví:</span>
                                   <span className="ml-1 font-mono text-xs">{vehicle.owner}</span>
                                 </div>
                                 {vehicle.applicationType === 'TRANSFER' && vehicle.pendingBuyer && (
@@ -335,7 +376,7 @@ const AuthorityDashboard: React.FC = () => {
                             <div className="flex-shrink-0">
                               <button
                                 onClick={() => handleReview(vehicle)}
-                                className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg font-medium"
+                                className="flex items-center px-6 py-3 bg-slate-700 text-white rounded-md hover:bg-slate-800 transition-all shadow-md hover:shadow-lg font-medium"
                               >
                                 <EyeIcon className="w-5 h-5 mr-2" />
                                 Kiểm tra
@@ -362,12 +403,19 @@ const AuthorityDashboard: React.FC = () => {
                         <div key={vehicle.vin} className="border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow bg-white">
                           <div className="flex items-center gap-6">
                             <div className="flex-shrink-0">
-                              <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-green-100 to-green-200 flex items-center justify-center border-2 border-green-300">
-                                {vehicle.photoIpfsHash ? (
-                                  <img src={`https://ipfs.io/ipfs/${vehicle.photoIpfsHash}`} alt={vehicle.brand} className="w-full h-full object-cover rounded-lg" />
-                                ) : (
-                                  <CheckCircleIcon className="w-10 h-10 text-green-600" />
-                                )}
+                              <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-green-100 to-green-200 flex items-center justify-center border-2 border-green-300 overflow-hidden">
+                                {(() => {
+                                  try {
+                                    const photoHashes = JSON.parse(vehicle.photoIpfsHash || '{}');
+                                    return photoHashes.front ? (
+                                      <img src={getIPFSUrl(photoHashes.front)} alt={vehicle.brand} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <CheckCircleIcon className="w-10 h-10 text-green-600" />
+                                    );
+                                  } catch {
+                                    return <CheckCircleIcon className="w-10 h-10 text-green-600" />;
+                                  }
+                                })()}
                               </div>
                             </div>
 
@@ -399,6 +447,12 @@ const AuthorityDashboard: React.FC = () => {
                                 </div>
                                 <div className="flex items-center text-gray-600">
                                   <span className="font-medium">Chủ xe:</span>
+                                  <span className="ml-1 font-semibold text-blue-700">
+                                    {vehicleOwners.get(vehicle.owner)?.fullName || 'Chưa có KYC'}
+                                  </span>
+                                </div>
+                                <div className="col-span-3 flex items-center text-gray-600">
+                                  <span className="font-medium">Địa chỉ ví:</span>
                                   <span className="ml-1 font-mono text-xs">{vehicle.owner}</span>
                                 </div>
                               </div>
@@ -407,7 +461,7 @@ const AuthorityDashboard: React.FC = () => {
                             <div className="flex-shrink-0">
                               <button
                                 onClick={() => handleReview(vehicle)}
-                                className="flex items-center px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all shadow-md hover:shadow-lg font-medium"
+                                className="flex items-center px-6 py-3 bg-slate-700 text-white rounded-md hover:bg-slate-800 transition-all shadow-md hover:shadow-lg font-medium"
                               >
                                 <EyeIcon className="w-5 h-5 mr-2" />
                                 Xem chi tiết
@@ -434,12 +488,19 @@ const AuthorityDashboard: React.FC = () => {
                         <div key={vehicle.vin} className="border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow bg-white">
                           <div className="flex items-center gap-6">
                             <div className="flex-shrink-0">
-                              <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-red-100 to-red-200 flex items-center justify-center border-2 border-red-300">
-                                {vehicle.photoIpfsHash ? (
-                                  <img src={`https://ipfs.io/ipfs/${vehicle.photoIpfsHash}`} alt={vehicle.brand} className="w-full h-full object-cover rounded-lg" />
-                                ) : (
-                                  <XCircleIcon className="w-10 h-10 text-red-600" />
-                                )}
+                              <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-red-100 to-red-200 flex items-center justify-center border-2 border-red-300 overflow-hidden">
+                                {(() => {
+                                  try {
+                                    const photoHashes = JSON.parse(vehicle.photoIpfsHash || '{}');
+                                    return photoHashes.front ? (
+                                      <img src={getIPFSUrl(photoHashes.front)} alt={vehicle.brand} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <XCircleIcon className="w-10 h-10 text-red-600" />
+                                    );
+                                  } catch {
+                                    return <XCircleIcon className="w-10 h-10 text-red-600" />;
+                                  }
+                                })()}
                               </div>
                             </div>
 
@@ -471,6 +532,12 @@ const AuthorityDashboard: React.FC = () => {
                                 </div>
                                 <div className="flex items-center text-gray-600">
                                   <span className="font-medium">Chủ xe:</span>
+                                  <span className="ml-1 font-semibold text-blue-700">
+                                    {vehicleOwners.get(vehicle.owner)?.fullName || 'Chưa có KYC'}
+                                  </span>
+                                </div>
+                                <div className="col-span-3 flex items-center text-gray-600">
+                                  <span className="font-medium">Địa chỉ ví:</span>
                                   <span className="ml-1 font-mono text-xs">{vehicle.owner}</span>
                                 </div>
                                 {vehicle.rejectReason && (
@@ -485,7 +552,7 @@ const AuthorityDashboard: React.FC = () => {
                             <div className="flex-shrink-0">
                               <button
                                 onClick={() => handleReview(vehicle)}
-                                className="flex items-center px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all shadow-md hover:shadow-lg font-medium"
+                                className="flex items-center px-6 py-3 bg-slate-700 text-white rounded-md hover:bg-slate-800 transition-all shadow-md hover:shadow-lg font-medium"
                               >
                                 <EyeIcon className="w-5 h-5 mr-2" />
                                 Xem chi tiết
@@ -520,12 +587,19 @@ const AuthorityDashboard: React.FC = () => {
                         <div key={vehicle.vin} className="border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow bg-white">
                           <div className="flex items-center gap-6">
                             <div className="flex-shrink-0">
-                              <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center border-2 border-gray-300">
-                                {vehicle.photoIpfsHash ? (
-                                  <img src={`https://ipfs.io/ipfs/${vehicle.photoIpfsHash}`} alt={vehicle.brand} className="w-full h-full object-cover rounded-lg" />
-                                ) : (
-                                  <StatusIcon className="w-10 h-10 text-gray-400" />
-                                )}
+                              <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center border-2 border-gray-300 overflow-hidden">
+                                {(() => {
+                                  try {
+                                    const photoHashes = JSON.parse(vehicle.photoIpfsHash || '{}');
+                                    return photoHashes.front ? (
+                                      <img src={getIPFSUrl(photoHashes.front)} alt={vehicle.brand} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <StatusIcon className="w-10 h-10 text-gray-600" />
+                                    );
+                                  } catch {
+                                    return <StatusIcon className="w-10 h-10 text-gray-600" />;
+                                  }
+                                })()}
                               </div>
                             </div>
 
@@ -557,6 +631,12 @@ const AuthorityDashboard: React.FC = () => {
                                 </div>
                                 <div className="flex items-center text-gray-600">
                                   <span className="font-medium">Chủ xe:</span>
+                                  <span className="ml-1 font-semibold text-blue-700">
+                                    {vehicleOwners.get(vehicle.owner)?.fullName || 'Chưa có KYC'}
+                                  </span>
+                                </div>
+                                <div className="col-span-3 flex items-center text-gray-600">
+                                  <span className="font-medium">Địa chỉ ví:</span>
                                   <span className="ml-1 font-mono text-xs">{vehicle.owner}</span>
                                 </div>
                               </div>
@@ -565,7 +645,7 @@ const AuthorityDashboard: React.FC = () => {
                             <div className="flex-shrink-0">
                               <button
                                 onClick={() => handleReview(vehicle)}
-                                className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg font-medium"
+                                className="flex items-center px-6 py-3 bg-slate-700 text-white rounded-md hover:bg-slate-800 transition-all shadow-md hover:shadow-lg font-medium"
                               >
                                 <EyeIcon className="w-5 h-5 mr-2" />
                                 Xem chi tiết
@@ -649,6 +729,37 @@ const AuthorityDashboard: React.FC = () => {
                       </div>
                     </div>
                   </div>
+
+                  {pendingTransfer && selectedVehicle.status === 'TRANSFERRING' && (
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4 text-gray-900">Hợp đồng mua bán</h3>
+                      <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                        <div className="flex justify-between py-2 border-b border-gray-200">
+                          <span className="text-gray-600 font-medium">Người bán:</span>
+                          <span className="font-mono text-xs">{pendingTransfer.from}</span>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-gray-200">
+                          <span className="text-gray-600 font-medium">Người mua:</span>
+                          <span className="font-mono text-xs">{pendingTransfer.to}</span>
+                        </div>
+                        <div className="py-2 border-b border-gray-200">
+                          <span className="text-gray-600 font-medium">IPFS Hash:</span>
+                          <div className="mt-1 font-mono text-xs break-all">{pendingTransfer.contractIpfsHash}</div>
+                        </div>
+                        <div className="flex items-center justify-between pt-2">
+                          <span className="text-gray-600 font-medium">Tải xuống / xem:</span>
+                          <a
+                            href={getIPFSUrl(pendingTransfer.contractIpfsHash)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-4 py-2 bg-slate-700 text-white rounded-md text-sm hover:bg-slate-800 transition-colors"
+                          >
+                            Xem hợp đồng
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-6">
@@ -740,10 +851,10 @@ const AuthorityDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 flex items-center justify-end space-x-4">
+              <div className="border-t border-gray-200 px-6 py-4 bg-slate-50 flex items-center justify-end space-x-4">
                 <button
                   onClick={() => setShowDetailModal(false)}
-                  className="px-6 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors font-medium"
+                  className="px-6 py-2.5 border-2 border-slate-300 text-slate-700 rounded-md hover:bg-slate-100 transition-colors font-medium"
                 >
                   Đóng
                 </button>
@@ -751,7 +862,7 @@ const AuthorityDashboard: React.FC = () => {
                   <>
                     <button
                       onClick={handleReject}
-                      className="flex items-center px-6 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors shadow-md font-medium"
+                      className="flex items-center px-6 py-2.5 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors shadow-md font-semibold"
                     >
                       <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -760,7 +871,7 @@ const AuthorityDashboard: React.FC = () => {
                     </button>
                     <button
                       onClick={handleApprove}
-                      className="flex items-center px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-md font-medium"
+                      className="flex items-center px-6 py-2.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors shadow-md font-semibold"
                     >
                       <CheckCircleIcon className="w-5 h-5 mr-2" />
                       Phê duyệt

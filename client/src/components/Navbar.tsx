@@ -21,7 +21,7 @@ const Navbar: React.FC = () => {
 
   const navLinks = [
     { path: '/', label: 'Trang chủ', icon: HomeIcon },
-    { path: '/dashboard', label: 'Dashboard', icon: ChartBarIcon, requireAuth: true },
+    { path: '/dashboard', label: 'Dashboard', icon: ChartBarIcon, requireAuth: true, citizenOnly: true },
     { path: '/authority', label: 'Cơ quan', icon: BuildingOfficeIcon, requireAuth: true, authorityOnly: true },
   ];
 
@@ -50,6 +50,8 @@ const Navbar: React.FC = () => {
                 if (link.requireAuth && !account) return null;
                 // Skip if authority only and user is not authority
                 if (link.authorityOnly && !isAuthority) return null;
+                // Skip if citizen only and user is authority
+                if (link.citizenOnly && isAuthority) return null;
                 
                 const IconComponent = link.icon;
                 return (
@@ -186,6 +188,7 @@ const Navbar: React.FC = () => {
               {navLinks.map((link) => {
                 if (link.requireAuth && !account) return null;
                 if (link.authorityOnly && !isAuthority) return null;
+                if (link.citizenOnly && isAuthority) return null;
                 
                 const IconComponent = link.icon;
                 return (
