@@ -91,21 +91,12 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
             </button>
           </>
         ) : (
-          <>
-            <button
-              onClick={() => onViewDetails?.(vehicle.vin)}
-              className="btn btn-outline flex-1"
-            >
-              Xem chi tiết
-            </button>
-            <button
-              onClick={() => onTransfer?.(vehicle.vin)}
-              className="btn btn-primary flex-1"
-              disabled={!canTransfer}
-            >
-              Chuyển nhượng
-            </button>
-          </>
+          <button
+            onClick={() => onViewDetails?.(vehicle.vin)}
+            className="btn btn-outline w-full"
+          >
+            Xem chi tiết
+          </button>
         )}
       </div>
     </div>
