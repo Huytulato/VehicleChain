@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
 import Spinner from './Spinner';
-import { HomeIcon, ChartBarIcon, BuildingOfficeIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { HomeIcon, ChartBarIcon, BuildingOfficeIcon, CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { ShieldCheckIcon } from '@heroicons/react/24/solid';
 
 const Navbar: React.FC = () => {
@@ -103,6 +103,16 @@ const Navbar: React.FC = () => {
                   </span>
                 </div>
 
+                {/* History Button - QUAN TRỌNG */}
+                {account && !isAuthority && (
+                 <button
+                   onClick={() => navigate('/account-history')}
+                   className="hidden md:flex items-center p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                   title="Lịch sử hoạt động"
+                 >
+                   <ClockIcon className="w-5 h-5" />
+                 </button>
+                )}
                 {/* Mobile Menu Button */}
                 <button
                   onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -207,6 +217,21 @@ const Navbar: React.FC = () => {
                   </Link>
                 );
               })}
+              
+              {/* Mobile History Link */}
+              {!isAuthority && (
+               <button
+                 onClick={() => {
+                  navigate('/account-history');
+                  setMobileMenuOpen(false);
+                }}
+               className="w-full flex items-center px-4 py-3 text-left text-gray-700 hover:bg-gray-100 rounded-lg font-medium"
+                >
+               <ClockIcon className="w-5 h-5 mr-3" />
+               Lịch sử hoạt động
+               </button>
+              )}
+
               
               {/* Mobile User Info */}
               <div className="px-4 py-3 bg-gray-50 rounded-lg mt-4">
