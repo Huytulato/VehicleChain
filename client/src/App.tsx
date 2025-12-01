@@ -7,6 +7,7 @@ import AuthorityDashboard from './pages/authority/Dashboard';
 import VehicleSearch from './pages/authority/VehicleSearch';
 import TransferVehicle from './pages/citizen/TransferVehicle';
 import VehicleHistory from './pages/citizen/VehicleHistory';
+import AccountHistory from './components/AccountHistory';
 import Test from './pages/Test';
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/transfer-vehicle" element={<TransferVehicle />} />
               <Route path="/vehicle-history" element={<VehicleHistory />} />
+              <Route path="/account-history" element={<AccountHistory />} />
               <Route path="/authority" element={<AuthorityDashboard />} />
               <Route path="/authority/search" element={<VehicleSearch />} />
               <Route path="/test" element={<Test />} />
@@ -34,4 +36,3 @@ function App() {
 }
 
 export default App;
-
