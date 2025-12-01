@@ -748,5 +748,24 @@ export const searchVehicleByVIN = async (query: string): Promise<Vehicle | null>
     return null;
   }
 };
-
+/**
+ * Lấy lịch sử hoạt động của tài khoản
+ */
+export const getAccountActivities = async (address: string): Promise<any[]> => {
+  try {
+    const contract = await getContract();
+    const activities = await contract.getAccountActivities(address);
+    
+    return activities.map((activity: any) => ({
+      activityType: activity.activityType,
+      vin: activity.vin,
+      details: activity.details,
+      timestamp: Number(activity.timestamp),
+      relatedAddress: activity.relatedAddress
+    }));
+  } catch (error) {
+    console.error('Error getting account activities:', error);
+    return [];
+  }
+};
 export { getContract };
