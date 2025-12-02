@@ -21,6 +21,8 @@ const AuthorityDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [pendingTransfer, setPendingTransfer] = useState<any>(null);
   const [vehicleOwners, setVehicleOwners] = useState<Map<string, any>>(new Map());
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
+  const [viewingImageLabel, setViewingImageLabel] = useState<string>('');
 
   useEffect(() => {
     if (!account) {
@@ -38,11 +40,11 @@ const AuthorityDashboard: React.FC = () => {
     try {
       const allVehicles = await getAllVehiclesForAuthority();
       setVehicles(allVehicles);
-      
+
       // Tải thông tin chủ xe cho tất cả xe
       const { getUserKYC } = await import('../../services/blockchain');
       const ownerMap = new Map();
-      
+
       for (const vehicle of allVehicles) {
         try {
           const info = await getUserKYC(vehicle.owner);
@@ -53,7 +55,7 @@ const AuthorityDashboard: React.FC = () => {
           // Skip nếu không lấy được KYC
         }
       }
-      
+
       setVehicleOwners(ownerMap);
     } catch (error) {
       console.error('Error loading vehicles:', error);
@@ -180,7 +182,7 @@ const AuthorityDashboard: React.FC = () => {
                 <p className="text-slate-300 text-sm">Cơ quan Cảnh sát Giao thông - Bộ Công an</p>
               </div>
             </div>
-            
+
             {/* Search Vehicle Button */}
             <button
               onClick={() => navigate('/authority/search')}
@@ -312,7 +314,7 @@ const AuthorityDashboard: React.FC = () => {
                                     if (photoHashes.front) {
                                       return <img src={getIPFSUrl(photoHashes.front)} alt={vehicle.brand} className="w-full h-full object-cover" />;
                                     }
-                                  } catch {}
+                                  } catch { }
                                   return vehicle.applicationType === 'TRANSFER' ? (
                                     <ArrowPathRoundedSquareIcon className="w-10 h-10 text-purple-600" />
                                   ) : (
@@ -778,7 +780,15 @@ const AuthorityDashboard: React.FC = () => {
 
                           return positions.map(({ key, label }) => (
                             <div key={key} className="border border-gray-300 rounded-lg p-3 bg-gray-50">
-                              <div className="aspect-video bg-gradient-to-br from-gray-200 to-gray-300 rounded mb-2 flex items-center justify-center overflow-hidden">
+                              <div
+                                className="aspect-video bg-gradient-to-br from-gray-200 to-gray-300 rounded mb-2 flex items-center justify-center overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() => {
+                                  if (photoHashes[key]) {
+                                    setViewingImage(getIPFSUrl(photoHashes[key]));
+                                    setViewingImageLabel(label);
+                                  }
+                                }}
+                              >
                                 {photoHashes[key] ? (
                                   <img
                                     src={getIPFSUrl(photoHashes[key])}
@@ -818,29 +828,40 @@ const AuthorityDashboard: React.FC = () => {
                               );
                             }
 
-                            return documents.map((doc: any, index: number) => (
-                              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-blue-50 transition-colors">
-                                <div className="flex items-center space-x-3 overflow-hidden">
-                                  <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded flex items-center justify-center text-blue-600">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
+                            return documents.map((doc: any, index: number) => {
+                              const isImage = doc.type && doc.type.startsWith('image/');
+                              return (
+                                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-blue-50 transition-colors">
+                                  <div
+                                    className={`flex items-center space-x-3 overflow-hidden ${isImage ? 'cursor-pointer' : ''}`}
+                                    onClick={() => {
+                                      if (isImage) {
+                                        setViewingImage(getIPFSUrl(doc.hash));
+                                        setViewingImageLabel(doc.name);
+                                      }
+                                    }}
+                                  >
+                                    <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded flex items-center justify-center text-blue-600">
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                      </svg>
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-medium text-gray-900 truncate max-w-[150px]">{doc.name}</p>
+                                      <p className="text-xs text-gray-500">{(doc.size / 1024).toFixed(2)} KB</p>
+                                    </div>
                                   </div>
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-medium text-gray-900 truncate max-w-[150px]">{doc.name}</p>
-                                    <p className="text-xs text-gray-500">{(doc.size / 1024).toFixed(2)} KB</p>
-                                  </div>
+                                  <a
+                                    href={getIPFSUrl(doc.hash)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex-shrink-0 ml-2 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 rounded hover:bg-blue-200 transition-colors"
+                                  >
+                                    Xem
+                                  </a>
                                 </div>
-                                <a
-                                  href={getIPFSUrl(doc.hash)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex-shrink-0 ml-2 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 rounded hover:bg-blue-200 transition-colors"
-                                >
-                                  Xem
-                                </a>
-                              </div>
-                            ));
+                              );
+                            });
                           } catch (e) {
                             return null;
                           }
@@ -878,6 +899,32 @@ const AuthorityDashboard: React.FC = () => {
                     </button>
                   </>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Image Viewer Modal */}
+        {viewingImage && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4"
+            onClick={() => setViewingImage(null)}
+          >
+            <div className="relative max-w-7xl max-h-[90vh] w-full h-full flex items-center justify-center">
+              <button
+                onClick={() => setViewingImage(null)}
+                className="absolute top-4 right-4 text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-2 transition-colors z-10"
+              >
+                <XMarkIcon className="w-8 h-8" />
+              </button>
+              <div className="text-center">
+                <img
+                  src={viewingImage}
+                  alt={viewingImageLabel}
+                  className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <p className="text-white text-lg font-semibold mt-4">{viewingImageLabel}</p>
               </div>
             </div>
           </div>
