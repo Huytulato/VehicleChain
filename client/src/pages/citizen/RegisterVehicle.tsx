@@ -75,7 +75,7 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
       if (account) {
         const status = await checkKYCStatus(account);
         setIsKYCRegistered(status);
-        
+
         // Pre-fill KYC data if already registered
         if (user?.isKYCVerified) {
           setFormData(prev => ({
@@ -265,12 +265,12 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
         });
       } else if (user?.isKYCVerified) {
         // Nếu đã đăng ký và có thay đổi thông tin, update
-        const hasChanged = 
+        const hasChanged =
           user.fullName !== formData.fullName ||
           user.idNumber !== formData.cccd ||
           user.phone !== formData.phoneNumber ||
           user.residenceAddress !== formData.homeAddress;
-        
+
         if (hasChanged) {
           console.log('Cập nhật KYC...');
           await updateKYC({
@@ -469,6 +469,11 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
             {/* KYC Section */}
             <div className="border-t pt-6 mt-6">
               <h3 className="text-lg font-bold mb-4">Thông tin chủ xe (KYC)</h3>
+              <div className="bg-blue-50 border-l-4 border-blue-500 p-3 mb-4 rounded">
+                <p className="text-sm text-blue-800">
+                  <strong>ℹ️ Lưu ý:</strong> Thông tin người dùng không thể chỉnh sửa khi đăng ký xe. Vui lòng kiểm tra kỹ thông tin của bạn.
+                </p>
+              </div>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="label">
@@ -479,7 +484,8 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
                     name="fullName"
                     value={formData.fullName}
                     onChange={handleInputChange}
-                    className={`input ${errors.fullName ? 'border-red-500' : ''}`}
+                    disabled
+                    className={`input bg-gray-100 cursor-not-allowed ${errors.fullName ? 'border-red-500' : ''}`}
                     placeholder="Nguyễn Văn A"
                   />
                   {errors.fullName && <p className="text-red-500 text-sm mt-1">{errors.fullName}</p>}
@@ -493,7 +499,8 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
                     name="cccd"
                     value={formData.cccd}
                     onChange={handleInputChange}
-                    className={`input ${errors.cccd ? 'border-red-500' : ''}`}
+                    disabled
+                    className={`input bg-gray-100 cursor-not-allowed ${errors.cccd ? 'border-red-500' : ''}`}
                     placeholder="0010..."
                   />
                   {errors.cccd && <p className="text-red-500 text-sm mt-1">{errors.cccd}</p>}
@@ -507,7 +514,8 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
                     name="phoneNumber"
                     value={formData.phoneNumber}
                     onChange={handleInputChange}
-                    className={`input ${errors.phoneNumber ? 'border-red-500' : ''}`}
+                    disabled
+                    className={`input bg-gray-100 cursor-not-allowed ${errors.phoneNumber ? 'border-red-500' : ''}`}
                     placeholder="09..."
                   />
                   {errors.phoneNumber && <p className="text-red-500 text-sm mt-1">{errors.phoneNumber}</p>}
@@ -521,7 +529,8 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
                     name="homeAddress"
                     value={formData.homeAddress}
                     onChange={handleInputChange}
-                    className={`input ${errors.homeAddress ? 'border-red-500' : ''}`}
+                    disabled
+                    className={`input bg-gray-100 cursor-not-allowed ${errors.homeAddress ? 'border-red-500' : ''}`}
                     placeholder="Số 1, Đại Cồ Việt..."
                   />
                   {errors.homeAddress && <p className="text-red-500 text-sm mt-1">{errors.homeAddress}</p>}
