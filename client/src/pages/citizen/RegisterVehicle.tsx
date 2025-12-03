@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import Spinner from '../../components/Spinner';
 import { submitVehicle, registerKYC, checkKYCStatus, updateKYC } from '../../services/blockchain';
 import { uploadMultipleFiles, uploadFileToIPFS } from '../../services/ipfs';
-import { XMarkIcon, PhotoIcon, DocumentIcon } from '@heroicons/react/24/outline';
+import { extractVehicleInfo } from '../../services/ocr';
+import { XMarkIcon, PhotoIcon, DocumentIcon, SparklesIcon, DocumentArrowUpIcon } from '@heroicons/react/24/outline';
 import { useWallet } from '../../context/WalletContext';
 
 interface RegisterVehicleProps {
@@ -50,6 +51,12 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
   // Document upload state - now supports multiple files
   const [documents, setDocuments] = useState<File[]>([]);
   const [documentPreviews, setDocumentPreviews] = useState<string[]>([]);
+
+  // OCR State
+  const [isOCRProcessing, setIsOCRProcessing] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const [ocrResult, setOcrResult] = useState<VehicleOCRResult | null>(null);
+  const [showOCRResult, setShowOCRResult] = useState(false);
 
   const steps = [
     { number: 1, title: 'Thông tin' },
@@ -388,7 +395,143 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
       <div className="card">
         {currentStep === 1 && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Thông tin phương tiện</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">Thông tin phương tiện</h2>
+            </div>
+
+            {/* OCR Upload Section */}
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-dashed border-purple-300 rounded-xl p-6">
+              <div className="flex items-start space-x-4">
+                <div className="bg-purple-100 p-3 rounded-full">
+                  <SparklesIcon className="w-8 h-8 text-purple-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-purple-900 mb-1">
+                    🪄 Tự động điền bằng AI (OCR)
+                  </h3>
+                  <p className="text-sm text-purple-700 mb-4">
+                    Tải ảnh giấy đăng ký xe để tự động nhận dạng thông tin. Hỗ trợ tiếng Việt.
+                  </p>
+                  
+                  <div className="flex flex-wrap gap-3">
+                    <label className="inline-flex items-center px-4 py-2.5 bg-purple-600 text-white rounded-lg cursor-pointer hover:bg-purple-700 transition-all shadow-md hover:shadow-lg font-medium">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={isOCRProcessing}
+                        onChange={async (e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setIsOCRProcessing(true);
+                            setOcrProgress(0);
+                            setShowOCRResult(false);
+                            try {
+                              const result = await extractVehicleInfo(
+                                e.target.files[0],
+                                (progress) => setOcrProgress(progress)
+                              );
+                              setOcrResult(result);
+                              setShowOCRResult(true);
+                              
+                              // Auto-fill form with extracted data
+                              setFormData(prev => ({
+                                ...prev,
+                                vin: result.vin || prev.vin,
+                                engineNumber: result.engineNumber || prev.engineNumber,
+                                licensePlate: result.licensePlate || prev.licensePlate,
+                                brand: result.brand || prev.brand,
+                                color: result.color || prev.color,
+                              }));
+                            } catch (error: any) {
+                              alert(error.message || 'Lỗi OCR');
+                            } finally {
+                              setIsOCRProcessing(false);
+                              setOcrProgress(0);
+                            }
+                          }
+                        }}
+                      />
+                      <DocumentArrowUpIcon className="w-5 h-5 mr-2" />
+                      {isOCRProcessing ? 'Đang xử lý...' : 'Tải ảnh giấy đăng ký'}
+                    </label>
+                    
+                    {showOCRResult && ocrResult && (
+                      <button
+                        onClick={() => setShowOCRResult(false)}
+                        className="px-4 py-2.5 border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-100 transition-all font-medium"
+                      >
+                        Ẩn kết quả
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Progress Bar */}
+                  {isOCRProcessing && (
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="text-purple-700">Đang nhận dạng văn bản...</span>
+                        <span className="font-medium text-purple-900">{ocrProgress}%</span>
+                      </div>
+                      <div className="w-full bg-purple-200 rounded-full h-2.5">
+                        <div 
+                          className="bg-purple-600 h-2.5 rounded-full transition-all duration-300"
+                          style={{ width: `${ocrProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* OCR Result Panel */}
+                  {showOCRResult && ocrResult && (
+                    <div className="mt-4 bg-white rounded-lg border border-purple-200 p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-semibold text-gray-900">📋 Kết quả nhận dạng</h4>
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          ocrResult.confidence > 70 
+                            ? 'bg-green-100 text-green-700' 
+                            : ocrResult.confidence > 50 
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : 'bg-red-100 text-red-700'
+                        }`}>
+                          Độ tin cậy: {ocrResult.confidence.toFixed(0)}%
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className={ocrResult.vin ? 'text-green-700' : 'text-gray-400'}>
+                          <span className="font-medium">Số khung:</span> {ocrResult.vin || 'Không tìm thấy'}
+                        </div>
+                        <div className={ocrResult.engineNumber ? 'text-green-700' : 'text-gray-400'}>
+                          <span className="font-medium">Số máy:</span> {ocrResult.engineNumber || 'Không tìm thấy'}
+                        </div>
+                        <div className={ocrResult.licensePlate ? 'text-green-700' : 'text-gray-400'}>
+                          <span className="font-medium">Biển số:</span> {ocrResult.licensePlate || 'Không tìm thấy'}
+                        </div>
+                        <div className={ocrResult.brand ? 'text-green-700' : 'text-gray-400'}>
+                          <span className="font-medium">Nhãn hiệu:</span> {ocrResult.brand || 'Không tìm thấy'}
+                        </div>
+                        <div className={ocrResult.color ? 'text-green-700' : 'text-gray-400'}>
+                          <span className="font-medium">Màu sơn:</span> {ocrResult.color || 'Không tìm thấy'}
+                        </div>
+                      </div>
+                      
+                      <p className="text-xs text-gray-500 mt-3 italic">
+                        💡 Kết quả đã tự động điền vào form. Vui lòng kiểm tra và chỉnh sửa nếu cần.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-4 bg-white text-gray-500">hoặc nhập thủ công</span>
+              </div>
+            </div>
 
             <div>
               <label className="label">
@@ -578,7 +721,7 @@ const RegisterVehicle: React.FC<RegisterVehicleProps> = ({ editVin }) => {
                       </div>
                     </div>
                   ) : (
-                    <label className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all block h-48 flex flex-col items-center justify-center">
+                    <label className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all h-48 flex flex-col items-center justify-center">
                       <input
                         type="file"
                         accept="image/*"
